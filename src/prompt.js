@@ -7,6 +7,7 @@ import {
   PROMPT_PRESETS,
   SQUAD_ROLE_LABELS,
 } from './constants.js';
+import { formatSeasonTotals } from './formatters.js';
 import {
   getAbilities,
   getActiveContract,
@@ -132,14 +133,14 @@ export function buildPromptSummary(state, options = {}) {
     pushSection(lines, '当前赛季', [
       `${currentSeason.label || currentSeason.id}；状态：${currentSeason.status}；球队：${currentSeason.club || '未填写'}`,
       `时间：${currentSeason.startedAt || '未填写'} 至 ${currentSeason.endedAt || '进行中'}`,
-      `累计：${summary.appearances}次出场，${summary.starts}次首发，${summary.minutes}分钟，${summary.goals}球，${summary.assists}次助攻`,
+      `累计：${formatSeasonTotals(summary)}`,
     ]);
   }
 
   if (closedSeason && closedSummary) {
     pushSection(lines, '最近结束赛季', [
       `${closedSeason.label || closedSeason.id}；球队：${closedSeason.club || '未填写'}；结束日期：${closedSeason.endedAt || '未填写'}`,
-      closedTotals ? `最终统计：${closedTotals.appearances ?? 0}次出场，${closedTotals.starts ?? 0}次首发，${closedTotals.minutes ?? 0}分钟，${closedTotals.goals ?? 0}球，${closedTotals.assists ?? 0}次助攻` : '',
+      closedTotals ? `最终统计：${formatSeasonTotals(closedTotals)}` : '',
       `球队赛季成绩：${closedSummary.finalStanding || '未填写'}`,
       `赛季末队内角色：${SQUAD_ROLE_LABELS[closedSummary.roleAtEnd] || closedSummary.roleAtEnd || '未填写'}`,
       `赛季总结：${closedSummary.narrativeSummary || '未填写'}`,
@@ -209,7 +210,7 @@ export function buildMemoryProjection(state, options = {}) {
   return {
     currentCareerState: `${state.player.name || '未命名'}，${state.player.currentClub || currentSeason?.club || '未填写球队'}，${state.player.primaryPosition || '未填写位置'}`,
     currentSeasonSummary: currentSeason && seasonSummary
-      ? `${currentSeason.label || currentSeason.id}: ${seasonSummary.appearances}次出场，${seasonSummary.starts}次首发，${seasonSummary.goals}球${seasonSummary.assists}助攻`
+      ? `${currentSeason.label || currentSeason.id}: ${formatSeasonTotals(seasonSummary)}`
       : '',
     notableMatches: notableMatches.map((match) => ({
       id: match.id,

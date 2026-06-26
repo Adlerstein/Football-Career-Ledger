@@ -19,6 +19,7 @@ import {
   WAGE_PERIODS,
 } from './constants.js';
 import { createExampleState, exportStateJson, parseImportJson, buildImportSummary } from './import-export.js';
+import { formatSeasonTotals } from './formatters.js';
 import {
   addContract,
   addMatch,
@@ -226,11 +227,6 @@ function currentTeamName(state) {
 
 function staticValue(value, emptyLabel = '未设置') {
   return h('span', { class: 'fcl-static-value', text: value || emptyLabel });
-}
-
-function formatSeasonStats(summary) {
-  if (!summary) return '';
-  return `${summary.appearances}场 / ${summary.starts}首发 / ${summary.minutes}分钟 / ${summary.goals}球 / ${summary.assists}助`;
 }
 
 function fixedTeamValue(name, value) {
@@ -525,7 +521,7 @@ function renderSeasons(state, actions) {
   }) : null;
   const closeForm = closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
     field('结束日期', dateInput('endedAt', seasonDefaultEndDate(closeTarget) || closeTarget.startedAt || currentLedgerDate(state))),
-    field('赛季统计', staticValue(formatSeasonStats(summarizeSeason(state, closeTarget.id)), '暂无比赛统计')),
+    field('赛季统计', staticValue(formatSeasonTotals(summarizeSeason(state, closeTarget.id), 'compact'), '暂无比赛统计')),
     field('球队赛季成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '', { placeholder: '例如：青年联赛第2名 / 杯赛四强' })),
     field('赛季末队内角色', select('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
     field('赛季简短总结', textarea('narrativeSummary', closeTarget.closedSummary?.narrativeSummary || '')),
