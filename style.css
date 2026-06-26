@@ -162,6 +162,28 @@
   align-items: center;
 }
 
+.fcl-muted {
+  color: color-mix(in srgb, var(--SmartThemeBodyColor), transparent 32%);
+  margin: 0.35rem 0 0.65rem;
+}
+
+.fcl-combo {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.fcl-choice-drawer summary {
+  cursor: pointer;
+  min-height: 2rem;
+}
+
+.fcl-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding-top: 0.35rem;
+}
+
 .fcl-pre {
   max-height: 16rem;
   overflow: auto;

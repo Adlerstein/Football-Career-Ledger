@@ -26,6 +26,12 @@ export function seasonStartedAtFromStartYear(year) {
   return `${startYear}-07-01`;
 }
 
+export function seasonEndedAtFromStartYear(year) {
+  const startYear = Number(year);
+  if (!Number.isInteger(startYear)) return '';
+  return `${startYear + 1}-06-30`;
+}
+
 export function getSeasonTemplateRows(startYear = SEASON_TEMPLATE_START_YEAR, endYear = SEASON_TEMPLATE_END_YEAR) {
   const rows = [];
   for (let year = startYear; year <= endYear; year += 1) {
@@ -33,6 +39,7 @@ export function getSeasonTemplateRows(startYear = SEASON_TEMPLATE_START_YEAR, en
       value: seasonIdFromStartYear(year),
       label: seasonLabelFromStartYear(year),
       startedAt: seasonStartedAtFromStartYear(year),
+      endedAt: seasonEndedAtFromStartYear(year),
     });
   }
   return rows;
@@ -46,6 +53,7 @@ export function parseSeasonInput(value) {
       id: raw,
       label: raw,
       startedAt: DEFAULT_SEASON_START_DATE,
+      endedAt: '',
     };
   }
   const startYear = Number(match[1]);
@@ -53,5 +61,18 @@ export function parseSeasonInput(value) {
     id: seasonIdFromStartYear(startYear),
     label: seasonLabelFromStartYear(startYear),
     startedAt: seasonStartedAtFromStartYear(startYear),
+    endedAt: seasonEndedAtFromStartYear(startYear),
+  };
+}
+
+export function getNextSeasonTemplate(currentSeason = null) {
+  if (!currentSeason?.id) return getSeasonTemplateRows()[0];
+  const match = String(currentSeason.id).match(/^(\d{4})-/);
+  const nextStartYear = match ? Number(match[1]) + 1 : SEASON_TEMPLATE_START_YEAR;
+  return {
+    value: seasonIdFromStartYear(nextStartYear),
+    label: seasonLabelFromStartYear(nextStartYear),
+    startedAt: seasonStartedAtFromStartYear(nextStartYear),
+    endedAt: seasonEndedAtFromStartYear(nextStartYear),
   };
 }

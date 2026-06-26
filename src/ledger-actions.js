@@ -757,6 +757,9 @@ export function recalculateSeasonClosure(state, seasonId, options = {}) {
 }
 
 export function createNextSeason(state, payload, options = {}) {
+  if (state.seasons.some((season) => season.status === 'active')) {
+    throw new Error('请先结束当前活动赛季，再创建下一赛季');
+  }
   const before = {
     seasons: cloneJson(state.seasons),
     player: cloneJson(state.player),

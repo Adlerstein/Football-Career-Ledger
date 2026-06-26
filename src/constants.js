@@ -81,15 +81,22 @@ export const TRANSACTION_TYPES = ['income', 'expense'];
 export const SEASON_STATUS_VALUES = ['active', 'completed', 'planned'];
 export const CONTRACT_TYPES = ['youth', 'professional', 'loan', 'amateur', 'other'];
 export const WAGE_PERIODS = ['weekly', 'monthly', 'yearly', 'one_time'];
-export const CAREER_STAGE_VALUES = [
+export const CAREER_STAGE_SELECT_VALUES = [
   'academy',
   'youth',
+  'reserve_team',
+  'first_team',
+  'loan',
+  'prime',
+  'late_career',
+  'retired',
+];
+export const CAREER_STAGE_VALUES = [
+  ...CAREER_STAGE_SELECT_VALUES,
   'first_team_fringe',
   'rotation',
   'regular_starter',
   'core_player',
-  'late_career',
-  'retired',
 ];
 export const SQUAD_ROLE_VALUES = [
   'prospect',
@@ -104,12 +111,16 @@ export const SQUAD_ROLE_VALUES = [
 export const CAREER_STAGE_LABELS = {
   academy: '青训梯队',
   youth: '青年队',
-  first_team_fringe: '一线队边缘',
-  rotation: '轮换阶段',
-  regular_starter: '稳定首发',
-  core_player: '核心球员',
+  reserve_team: '预备队/二队',
+  first_team: '一线队',
+  loan: '租借期',
+  prime: '成熟期',
   late_career: '生涯后期',
   retired: '已退役',
+  first_team_fringe: '旧：一线队边缘',
+  rotation: '旧：轮换阶段',
+  regular_starter: '旧：稳定首发',
+  core_player: '旧：核心球员',
 };
 export const SQUAD_ROLE_LABELS = {
   prospect: '潜力球员',

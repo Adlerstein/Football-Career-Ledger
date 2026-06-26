@@ -2,7 +2,7 @@ import {
   ABILITY_KEYS,
   ABILITY_LABELS,
   CAREER_STAGE_LABELS,
-  CAREER_STAGE_VALUES,
+  CAREER_STAGE_SELECT_VALUES,
   CONTRACT_TYPES,
   CURRENCY_LABELS,
   CURRENCY_VALUES,
@@ -53,7 +53,7 @@ import {
 } from './ledger-actions.js';
 import { buildModelSuggestionInstructions } from './suggestions.js';
 import { buildPromptSummary } from './prompt.js';
-import { getSeasonTemplateRows, parseSeasonInput } from './season-utils.js';
+import { getNextSeasonTemplate, getSeasonTemplateRows, parseSeasonInput } from './season-utils.js';
 import { readLedgerState, replaceLedgerState, clearLedgerState, writeLedgerState } from './storage.js';
 import {
   getAbilities,
@@ -129,6 +129,14 @@ function enumRows(values, labels = {}) {
   return values.map((value) => ({ value, label: labels[value] || value }));
 }
 
+function enumRowsWithCurrent(values, labels, current) {
+  const rows = enumRows(values, labels);
+  if (current && !values.includes(current)) {
+    rows.push({ value: current, label: labels[current] || current });
+  }
+  return rows;
+}
+
 function currencyRows(state) {
   const values = new Set([
     state.player.defaultCurrency || 'DEM',
@@ -170,6 +178,53 @@ function currentLedgerDate(state) {
 function dateInput(name, value = LEDGER_START_DATE, attrs = {}) {
   const resolved = value === undefined || value === null ? LEDGER_START_DATE : value;
   return input(name, resolved, { type: 'date', min: LEDGER_START_DATE, ...attrs });
+}
+
+function uniqueStrings(values) {
+  return Array.from(new Set(values.map((value) => String(value || '').trim()).filter(Boolean)));
+}
+
+function teamCandidates(state) {
+  const names = uniqueStrings([
+    state.player.currentTeam,
+    state.player.currentClub,
+    ...state.seasons.map((season) => season.club),
+    ...state.contracts.map((contract) => contract.club),
+    ...state.matches.map((match) => match.club),
+  ]);
+  const suggestions = [];
+  for (const name of names) {
+    suggestions.push(name);
+    if (!/(一线队|青年队|预备队|二队|U\d+|租借)/.test(name)) {
+      suggestions.push(`${name}一线队`, `${name}二队`, `${name}青年队`);
+    }
+  }
+  return uniqueStrings([...suggestions, '一线队', '二队', '预备队', '青年队']);
+}
+
+function teamPicker(name, state, value = '') {
+  const target = input(name, value);
+  const buttons = teamCandidates(state).slice(0, 12).map((team) => h('button', {
+    type: 'button',
+    class: 'menu_button fcl-small',
+    text: team,
+    onclick: () => { target.value = team; },
+  }));
+  return h('div', { class: 'fcl-combo' }, [
+    target,
+    h('details', { class: 'fcl-choice-drawer' }, [
+      h('summary', { text: '选择常用队伍' }),
+      h('div', { class: 'fcl-choice-grid' }, buttons),
+    ]),
+  ]);
+}
+
+function seasonDefaultEndDate(season) {
+  return season?.endedAt || parseSeasonInput(season?.id).endedAt || '';
+}
+
+function seasonTemplateSelect(value = '1998-99') {
+  return select('seasonTemplate', value, getSeasonTemplateRows());
 }
 
 function setStatus(root, message, kind = 'info') {
@@ -253,16 +308,15 @@ function renderSummaryCards(state, actions) {
 
 function renderOverview(state, actions) {
   const currentSeason = getCurrentSeason(state);
-  const templateRows = getSeasonTemplateRows();
   return h('div', {}, [
     renderSummaryCards(state, actions),
     renderRecordForm('基础资料', [
       field('球员姓名', input('name', state.player.name)),
       field('当前俱乐部', input('currentClub', state.player.currentClub)),
-      field('当前队伍', input('currentTeam', state.player.currentTeam)),
+      field('当前队伍', teamPicker('currentTeam', state, state.player.currentTeam)),
       field('主要位置', input('primaryPosition', state.player.primaryPosition)),
       field('副位置（逗号分隔）', input('secondaryPositions', state.player.secondaryPositions.join(', '))),
-      field('职业阶段', select('careerStage', state.player.careerStage, enumRows(CAREER_STAGE_VALUES, CAREER_STAGE_LABELS))),
+      field('职业阶段', select('careerStage', state.player.careerStage, enumRowsWithCurrent(CAREER_STAGE_SELECT_VALUES, CAREER_STAGE_LABELS, state.player.careerStage))),
       field('队内角色', select('squadRole', state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
       field('默认币种', select('defaultCurrency', state.player.defaultCurrency || 'DEM', currencyRows(state))),
       field('当前赛季', select('currentSeasonId', state.player.currentSeasonId || currentSeason?.id || '', seasonRows(state, '未设置'))),
@@ -278,21 +332,6 @@ function renderOverview(state, actions) {
         defaultCurrency: String(data.defaultCurrency || 'DEM').trim() || 'DEM',
         currentSeasonId: String(data.currentSeasonId || ''),
       }));
-    }),
-    renderRecordForm('从模板创建赛季', [
-      field('赛季模板', select('seasonTemplate', '1998-99', templateRows)),
-      field('俱乐部/队伍', input('club', state.player.currentTeam || state.player.currentClub)),
-      field('状态', select('status', 'active', ['active', 'planned'])),
-    ], '创建赛季', async (data, form) => {
-      const parsed = parseSeasonInput(data.seasonTemplate);
-      await actions.save((draft) => addSeason(draft, {
-        id: parsed.id,
-        label: parsed.label,
-        club: data.club,
-        startedAt: parsed.startedAt,
-        status: data.status,
-      }));
-      form.reset();
     }),
   ]);
 }
@@ -366,22 +405,35 @@ function renderMatches(state, actions) {
   ]);
 }
 
-function seasonFields(state, season = {}) {
-  const template = select('seasonTemplate', '', [{ value: '', label: '选择模板填充' }, ...getSeasonTemplateRows()]);
+function seasonFields(state, season = {}, mode = 'edit') {
+  const parsedSeason = parseSeasonInput(season.id);
+  const template = select('seasonTemplate', parsedSeason.id || '1998-99', getSeasonTemplateRows());
   template.addEventListener('change', (event) => {
     const parsed = parseSeasonInput(event.target.value);
     const form = event.target.closest('form');
     if (!form || !parsed.id) return;
-    form.querySelector('[name="id"]').value = parsed.id;
-    form.querySelector('[name="label"]').value = parsed.label;
-    form.querySelector('[name="startedAt"]').value = parsed.startedAt;
+    const id = form.querySelector('[name="id"]');
+    const label = form.querySelector('[name="label"]');
+    const startedAt = form.querySelector('[name="startedAt"]');
+    const endedAt = form.querySelector('[name="endedAt"]');
+    if (id) id.value = parsed.id;
+    if (label) label.value = parsed.label;
+    if (startedAt) startedAt.value = parsed.startedAt;
+    if (endedAt && !endedAt.value) endedAt.value = parsed.endedAt;
   });
+  const common = [
+    field('赛季模板', template),
+    field('俱乐部/队伍', teamPicker('club', state, season.club || state.player.currentTeam || state.player.currentClub)),
+    field('开始日期', dateInput('startedAt', season.startedAt || parsedSeason.startedAt || DEFAULT_SEASON_START_DATE)),
+    field('备注', textarea('notes', season.notes || '')),
+  ];
+  if (mode !== 'edit') return common;
   return [
     field('赛季模板', template),
     field('赛季ID', input('id', season.id || state.player.currentSeasonId || '1998-99')),
-    field('标签', input('label', season.label || '1998/99')),
-    field('俱乐部/队伍', input('club', season.club || state.player.currentTeam || state.player.currentClub)),
-    field('开始日期', dateInput('startedAt', season.startedAt || DEFAULT_SEASON_START_DATE)),
+    field('标签', input('label', season.label || parsedSeason.label || '1998/99')),
+    field('俱乐部/队伍', teamPicker('club', state, season.club || state.player.currentTeam || state.player.currentClub)),
+    field('开始日期', dateInput('startedAt', season.startedAt || parsedSeason.startedAt || DEFAULT_SEASON_START_DATE)),
     field('结束日期', dateInput('endedAt', season.endedAt || '', { value: season.endedAt || '' })),
     field('状态', select('status', season.status || 'active', ['active', 'completed', 'planned'])),
     field('备注', textarea('notes', season.notes || '')),
@@ -402,6 +454,10 @@ function seasonPayload(data) {
 }
 
 function renderSeasons(state, actions) {
+  const currentSeason = getCurrentSeason(state);
+  const activeSeason = state.seasons.find((season) => season.status === 'active') || null;
+  const latestSeason = state.seasons.slice().sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')))[0] || null;
+  const nextTemplate = getNextSeasonTemplate(latestSeason);
   const editor = actions.editing?.type === 'season'
     ? state.seasons.find((season) => season.id === actions.editing.id)
     : null;
@@ -410,60 +466,83 @@ function renderSeasons(state, actions) {
     return h('li', { class: 'fcl-list-row' }, [
       h('span', { text: `${season.label || season.id} ${season.status} ${summary?.appearances ?? 0}场 ${summary?.goals ?? 0}球 ${summary?.assists ?? 0}助` }),
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('season', season.id) }),
-      h('button', { type: 'button', class: 'menu_button fcl-small', text: '结束', onclick: () => actions.setEditing('closeSeason', season.id) }),
+      season.status === 'active' ? h('button', { type: 'button', class: 'menu_button fcl-small', text: '结束', onclick: () => actions.setEditing('closeSeason', season.id) }) : null,
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该赛季？有比赛引用的赛季会被拒绝删除。') && actions.save((draft) => deleteSeason(draft, season.id)) }),
     ]);
   });
   const closeTarget = actions.editing?.type === 'closeSeason'
     ? state.seasons.find((season) => season.id === actions.editing.id)
     : null;
+  const createInitialForm = !state.seasons.length ? renderRecordForm('创建开档赛季', seasonFields(state, {
+    id: '1998-99',
+    label: '1998/99',
+    club: state.player.currentTeam || state.player.currentClub,
+    startedAt: DEFAULT_SEASON_START_DATE,
+    status: 'active',
+  }, 'create'), '创建开档赛季', async (data, form) => {
+    const parsed = parseSeasonInput(data.seasonTemplate);
+    await actions.save((draft) => addSeason(draft, {
+      id: parsed.id,
+      label: parsed.label,
+      club: data.club,
+      startedAt: data.startedAt || parsed.startedAt,
+      status: 'active',
+      notes: data.notes,
+    }));
+    form.reset();
+  }) : null;
+  const closeForm = closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
+    field('结束日期', dateInput('endedAt', seasonDefaultEndDate(closeTarget) || closeTarget.startedAt || currentLedgerDate(state))),
+    field('赛季结果', input('teamOutcome', closeTarget.closedSummary?.teamOutcome || '')),
+    field('球队最终成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '')),
+    field('赛季末队内角色', select('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
+    field('赛季简短总结', textarea('narrativeSummary', closeTarget.closedSummary?.narrativeSummary || '')),
+    field('团队荣誉（逗号分隔）', input('teamHonors', closeTarget.closedSummary?.teamHonors?.join(', ') || '')),
+    field('个人荣誉（逗号分隔）', input('individualHonors', closeTarget.closedSummary?.individualHonors?.join(', ') || '')),
+  ], '确认结束赛季', async (data) => {
+    if (!confirm('确认正式结束该赛季？关闭后仍保留所有比赛记录。')) return;
+    await actions.save((draft) => closeSeason(draft, closeTarget.id, {
+      endedAt: data.endedAt,
+      teamOutcome: data.teamOutcome,
+      finalStanding: data.finalStanding,
+      roleAtEnd: data.roleAtEnd,
+      narrativeSummary: data.narrativeSummary,
+      teamHonors: String(data.teamHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
+      individualHonors: String(data.individualHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
+    }));
+    actions.clearEditing();
+  }) : null;
+  const closeCurrentCard = activeSeason && !closeTarget ? card('当前赛季', `${activeSeason.label || activeSeason.id} 正在进行`, [
+    h('button', { type: 'button', class: 'menu_button', text: '结束当前赛季', onclick: () => actions.setEditing('closeSeason', activeSeason.id) }),
+  ]) : null;
+  const createNextForm = state.seasons.length && !activeSeason ? renderRecordForm('创建下一赛季', [
+    field('赛季模板', seasonTemplateSelect(nextTemplate.value)),
+    field('队伍', teamPicker('club', state, state.player.currentTeam || state.player.currentClub)),
+    field('开始日期', dateInput('startedAt', nextTemplate.startedAt)),
+    field('当前俱乐部', input('currentClub', state.player.currentClub)),
+    field('当前队伍', teamPicker('currentTeam', state, state.player.currentTeam || state.player.currentClub)),
+  ], '创建下一赛季', async (data, form) => {
+    const parsed = parseSeasonInput(data.seasonTemplate);
+    await actions.save((draft) => createNextSeason(draft, {
+      id: parsed.id,
+      label: parsed.label,
+      club: data.club,
+      startedAt: data.startedAt || parsed.startedAt,
+      currentClub: data.currentClub,
+      currentTeam: data.currentTeam,
+    }));
+    form.reset();
+  }) : null;
   return h('div', {}, [
     editor ? renderRecordForm('编辑赛季', seasonFields(state, editor), '保存赛季', async (data) => {
       await actions.save((draft) => updateSeason(draft, editor.id, seasonPayload(data)));
       actions.clearEditing();
-    }) : renderRecordForm('新增赛季', seasonFields(state), '新增赛季', async (data, form) => {
-      await actions.save((draft) => addSeason(draft, seasonPayload(data)));
-      form.reset();
-    }),
-    closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
-      field('结束日期', dateInput('endedAt', closeTarget.endedAt || closeTarget.startedAt || currentLedgerDate(state))),
-      field('赛季结果', input('teamOutcome', closeTarget.closedSummary?.teamOutcome || '')),
-      field('球队最终成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '')),
-      field('赛季末队内角色', input('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || '')),
-      field('赛季简短总结', textarea('narrativeSummary', closeTarget.closedSummary?.narrativeSummary || '')),
-      field('团队荣誉（逗号分隔）', input('teamHonors', closeTarget.closedSummary?.teamHonors?.join(', ') || '')),
-      field('个人荣誉（逗号分隔）', input('individualHonors', closeTarget.closedSummary?.individualHonors?.join(', ') || '')),
-    ], '确认结束赛季', async (data) => {
-      if (!confirm('确认正式结束该赛季？关闭后仍保留所有比赛记录。')) return;
-      await actions.save((draft) => closeSeason(draft, closeTarget.id, {
-        endedAt: data.endedAt,
-        teamOutcome: data.teamOutcome,
-        finalStanding: data.finalStanding,
-        roleAtEnd: data.roleAtEnd,
-        narrativeSummary: data.narrativeSummary,
-        teamHonors: String(data.teamHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
-        individualHonors: String(data.individualHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
-      }));
-      actions.clearEditing();
     }) : null,
-    renderRecordForm('创建下一赛季', [
-      field('赛季ID', input('id', '1999-00')),
-      field('标签', input('label', '1999/00')),
-      field('队伍', input('club', state.player.currentTeam || state.player.currentClub)),
-      field('开始日期', dateInput('startedAt', currentLedgerDate(state))),
-      field('当前俱乐部', input('currentClub', state.player.currentClub)),
-      field('当前队伍', input('currentTeam', state.player.currentTeam)),
-    ], '创建下一赛季', async (data, form) => {
-      await actions.save((draft) => createNextSeason(draft, {
-        id: data.id,
-        label: data.label,
-        club: data.club,
-        startedAt: data.startedAt,
-        currentClub: data.currentClub,
-        currentTeam: data.currentTeam,
-      }));
-      form.reset();
-    }),
+    createInitialForm,
+    closeForm,
+    closeCurrentCard,
+    createNextForm,
+    state.seasons.length && activeSeason ? h('p', { class: 'fcl-muted', text: '下一赛季会在结束当前活动赛季后开放。默认赛季边界采用 7月1日 至 次年6月30日，可在结束赛季时手动调整。' }) : null,
     h('h3', { text: '赛季列表' }),
     h('ul', { class: 'fcl-list' }, rows),
   ]);

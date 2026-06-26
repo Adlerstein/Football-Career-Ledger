@@ -68,6 +68,7 @@ test('season template and slash input normalize to stable season ids', () => {
     id: '1998-99',
     label: '1998/99',
     startedAt: '1998-07-01',
+    endedAt: '1999-06-30',
   });
   const state = createInitialState('1998-01-01T00:00:00.000Z');
   addSeason(state, {
@@ -78,6 +79,15 @@ test('season template and slash input normalize to stable season ids', () => {
   assert.equal(state.seasons[0].id, '1998-99');
   assert.equal(state.seasons[0].label, '1998/99');
   assert.equal(state.player.currentSeasonId, '1998-99');
+});
+
+test('next season creation requires closing active season first', () => {
+  const state = exampleState();
+  assert.throws(() => createNextSeason(state, {
+    id: '1999-00',
+    club: '拜仁慕尼黑预备队',
+    startedAt: '1999-07-01',
+  }), /先结束当前活动赛季/);
 });
 
 test('finance balance is calculated from opening balances and transactions', () => {
