@@ -254,7 +254,7 @@ test('failed draft confirmation does not write formal records', () => {
 test('season closure stores calculated totals and next season can be created', () => {
   const state = exampleState();
   closeSeason(state, '1998-99', {
-    teamOutcome: '青年联赛中游',
+    finalStanding: '青年联赛中游',
     roleAtEnd: '青年队主力',
     narrativeSummary: '完成适应期',
     teamHonors: '',
@@ -263,6 +263,7 @@ test('season closure stores calculated totals and next season can be created', (
   const closed = state.seasons.find((season) => season.id === '1998-99');
   assert.equal(closed.status, 'completed');
   assert.equal(closed.closedSummary.calculatedTotals.assists, 1);
+  assert.equal(closed.closedSummary.teamOutcome, '1次出场，1次首发，88分钟，0球，1次助攻');
   createNextSeason(state, {
     id: '1999-00',
     label: '1999/00',

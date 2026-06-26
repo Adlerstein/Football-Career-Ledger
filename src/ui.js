@@ -228,6 +228,11 @@ function staticValue(value, emptyLabel = '未设置') {
   return h('span', { class: 'fcl-static-value', text: value || emptyLabel });
 }
 
+function formatSeasonStats(summary) {
+  if (!summary) return '';
+  return `${summary.appearances}场 / ${summary.starts}首发 / ${summary.minutes}分钟 / ${summary.goals}球 / ${summary.assists}助`;
+}
+
 function fixedTeamValue(name, value) {
   return h('div', { class: 'fcl-fixed-value' }, [
     staticValue(value, '请先在基础资料设置当前队伍'),
@@ -520,17 +525,16 @@ function renderSeasons(state, actions) {
   }) : null;
   const closeForm = closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
     field('结束日期', dateInput('endedAt', seasonDefaultEndDate(closeTarget) || closeTarget.startedAt || currentLedgerDate(state))),
-    field('赛季结果', input('teamOutcome', closeTarget.closedSummary?.teamOutcome || '')),
-    field('球队最终成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '')),
+    field('赛季统计', staticValue(formatSeasonStats(summarizeSeason(state, closeTarget.id)), '暂无比赛统计')),
+    field('球队赛季成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '', { placeholder: '例如：青年联赛第2名 / 杯赛四强' })),
     field('赛季末队内角色', select('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
     field('赛季简短总结', textarea('narrativeSummary', closeTarget.closedSummary?.narrativeSummary || '')),
-    field('团队荣誉（逗号分隔）', input('teamHonors', closeTarget.closedSummary?.teamHonors?.join(', ') || '')),
+    field('团队荣誉（奖杯/集体奖项，逗号分隔）', input('teamHonors', closeTarget.closedSummary?.teamHonors?.join(', ') || '', { placeholder: '例如：青年联赛冠军；没有可留空' })),
     field('个人荣誉（逗号分隔）', input('individualHonors', closeTarget.closedSummary?.individualHonors?.join(', ') || '')),
   ], '确认结束赛季', async (data) => {
     if (!confirm('确认正式结束该赛季？关闭后仍保留所有比赛记录。')) return;
     await actions.save((draft) => closeSeason(draft, closeTarget.id, {
       endedAt: data.endedAt,
-      teamOutcome: data.teamOutcome,
       finalStanding: data.finalStanding,
       roleAtEnd: data.roleAtEnd,
       narrativeSummary: data.narrativeSummary,

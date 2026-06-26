@@ -81,7 +81,7 @@ function historicalSeasonTable(state, limit = 8) {
 
   const rows = [
     '[历史赛季]',
-    '| 赛季 | 球队 | 出场 | 首发 | 进球 | 助攻 | 成绩 | 荣誉 |',
+    '| 赛季 | 球队 | 出场 | 首发 | 进球 | 助攻 | 球队成绩 | 荣誉 |',
     '| --- | --- | ---: | ---: | ---: | ---: | --- | --- |',
   ];
   for (const season of seasons) {
@@ -92,7 +92,7 @@ function historicalSeasonTable(state, limit = 8) {
       ...(Array.isArray(closure.teamHonors) ? closure.teamHonors : []),
       ...(Array.isArray(closure.individualHonors) ? closure.individualHonors : []),
     ];
-    rows.push(`| ${formatTableCell(season.label || season.id)} | ${formatTableCell(season.club)} | ${totals.appearances ?? 0} | ${totals.starts ?? 0} | ${totals.goals ?? 0} | ${totals.assists ?? 0} | ${formatTableCell(closure.finalStanding || closure.teamOutcome || season.status)} | ${formatTableCell(formatList(honors))} |`);
+    rows.push(`| ${formatTableCell(season.label || season.id)} | ${formatTableCell(season.club)} | ${totals.appearances ?? 0} | ${totals.starts ?? 0} | ${totals.goals ?? 0} | ${totals.assists ?? 0} | ${formatTableCell(closure.finalStanding || season.status)} | ${formatTableCell(formatList(honors))} |`);
   }
   return rows;
 }
@@ -140,8 +140,7 @@ export function buildPromptSummary(state, options = {}) {
     pushSection(lines, '最近结束赛季', [
       `${closedSeason.label || closedSeason.id}；球队：${closedSeason.club || '未填写'}；结束日期：${closedSeason.endedAt || '未填写'}`,
       closedTotals ? `最终统计：${closedTotals.appearances ?? 0}次出场，${closedTotals.starts ?? 0}次首发，${closedTotals.minutes ?? 0}分钟，${closedTotals.goals ?? 0}球，${closedTotals.assists ?? 0}次助攻` : '',
-      `赛季结果：${closedSummary.teamOutcome || '未填写'}`,
-      `球队最终成绩：${closedSummary.finalStanding || '未填写'}`,
+      `球队赛季成绩：${closedSummary.finalStanding || '未填写'}`,
       `赛季末队内角色：${SQUAD_ROLE_LABELS[closedSummary.roleAtEnd] || closedSummary.roleAtEnd || '未填写'}`,
       `赛季总结：${closedSummary.narrativeSummary || '未填写'}`,
       `团队荣誉：${formatList(closedSummary.teamHonors)}`,

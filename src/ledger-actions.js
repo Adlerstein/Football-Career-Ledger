@@ -59,6 +59,11 @@ function normalizeSourceFromOptions(options = {}) {
   return createSource(options.sourceType || 'manual', options.source || {});
 }
 
+function formatSeasonOutcome(totals) {
+  if (!totals) return '';
+  return `${totals.appearances}次出场，${totals.starts}次首发，${totals.minutes}分钟，${totals.goals}球，${totals.assists}次助攻`;
+}
+
 function withMeta(record, options = {}, existingMeta = null) {
   const timestamp = options.timestamp || nowIso();
   const source = normalizeSourceFromOptions(options);
@@ -692,7 +697,7 @@ export function closeSeason(state, seasonId, closure, options = {}) {
         averageRating: totals.averageRating,
         notableMatches: state.matches.filter((match) => match.seasonId === seasonId && match.notable).length,
       } : {},
-      teamOutcome: asString(data.teamOutcome),
+      teamOutcome: asString(data.teamOutcome) || formatSeasonOutcome(totals),
       finalStanding: asString(data.finalStanding),
       roleAtEnd: asString(data.roleAtEnd),
       narrativeSummary: asString(data.narrativeSummary),
