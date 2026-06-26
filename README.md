@@ -1,4 +1,4 @@
-# Luker-Football-Career-Ledger
+# Football-Career-Ledger
 
 `足球生涯账本` 是 Luker 前端插件，用于手动保存足球模拟人生中的结构化隐藏状态：比赛、赛季汇总、合同、财务流水、余额、能力值变化和少量杂项事实。
 
@@ -32,10 +32,10 @@
 通过 Luker 第三方扩展安装器安装 GitHub URL：
 
 ```text
-https://github.com/<your-github-user>/Luker-Football-Career-Ledger
+https://github.com/<your-github-user>/Football-Career-Ledger
 ```
 
-安卓 APK 中同样打开扩展管理，粘贴同一个 GitHub URL。安装器会把仓库克隆到 `third-party/Luker-Football-Career-Ledger`，读取仓库根目录的 `manifest.json`，再加载 `index.js` 和 `style.css`。
+安卓 APK 中同样打开扩展管理，粘贴同一个 GitHub URL。安装器会把仓库克隆到 `third-party/Football-Career-Ledger`，读取仓库根目录的 `manifest.json`，再加载 `index.js` 和 `style.css`。
 
 ## 升级
 
