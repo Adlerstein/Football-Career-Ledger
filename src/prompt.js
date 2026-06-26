@@ -1,10 +1,19 @@
-import { ABILITY_KEYS, ABILITY_LABELS, DEFAULT_PROMPT_MAX_CHARS, DEFAULT_RECENT_MATCH_LIMIT } from './constants.js';
+import {
+  ABILITY_KEYS,
+  ABILITY_LABELS,
+  CAREER_STAGE_LABELS,
+  DEFAULT_PROMPT_MAX_CHARS,
+  DEFAULT_RECENT_MATCH_LIMIT,
+  PROMPT_PRESETS,
+  SQUAD_ROLE_LABELS,
+} from './constants.js';
 import {
   getAbilities,
   getActiveContract,
   getCurrentSeason,
   getFinanceSummary,
   getMiscellaneous,
+  getPendingDraftCount,
   queryMatches,
   summarizeSeason,
 } from './selectors.js';
@@ -28,15 +37,25 @@ function formatMatch(match) {
   return parts.join('，');
 }
 
+function abilityStrengthSummary(abilities) {
+  const rows = ABILITY_KEYS.map((key) => ({ key, value: abilities[key] ?? 0 }))
+    .sort((a, b) => b.value - a.value);
+  const top = rows.slice(0, 2).map((row) => `${ABILITY_LABELS[row.key]}${row.value}`).join('、');
+  const weak = rows.slice(-2).map((row) => `${ABILITY_LABELS[row.key]}${row.value}`).join('、');
+  return `能力倾向：优势 ${top || '无'}；短板 ${weak || '无'}。`;
+}
+
 export function buildPromptSummary(state, options = {}) {
   const maxChars = Math.max(0, Math.floor(Number(options.maxChars ?? DEFAULT_PROMPT_MAX_CHARS)));
   if (maxChars === 0) return '';
 
   const recentMatchLimit = Math.max(0, Math.min(10, Math.floor(Number(options.recentMatchLimit ?? DEFAULT_RECENT_MATCH_LIMIT))));
-  const includeContracts = options.includeContracts !== false;
-  const includeFinance = options.includeFinance !== false;
-  const includeAbilities = options.includeAbilities !== false;
-  const includeMiscellaneous = options.includeMiscellaneous !== false;
+  const preset = PROMPT_PRESETS.includes(options.preset || options.promptPreset) ? (options.preset || options.promptPreset) : 'standard';
+  const includeContracts = preset !== 'minimal' && options.includeContracts !== false;
+  const includeFinance = preset === 'full' && options.includeFinance !== false;
+  const includeAbilities = preset !== 'minimal' && options.includeAbilities !== false;
+  const includeFullAbilities = preset === 'full';
+  const includeMiscellaneous = preset === 'full' && options.includeMiscellaneous !== false;
 
   const currentSeason = getCurrentSeason(state);
   const summary = summarizeSeason(state, currentSeason?.id);
@@ -44,11 +63,11 @@ export function buildPromptSummary(state, options = {}) {
   const lines = [];
 
   lines.push('<football_career_ledger readonly="true">');
-  lines.push('以下为插件提供的结构化账本摘要，只供叙事参考；不要原文输出，不要写入MVU变量。');
-  lines.push(`球员：${state.player.name || '未命名'}；球队：${state.player.currentClub || currentSeason?.club || '未填写'}；位置：${state.player.primaryPosition || '未填写'}。`);
+  lines.push('以下为插件提供的结构化账本摘要，只供叙事参考；不要原文输出，不要写入MVU，不要自行修改这些数值。');
+  lines.push(`球员：${state.player.name || '未命名'}；俱乐部：${state.player.currentClub || currentSeason?.club || '未填写'}；队伍：${state.player.currentTeam || state.player.currentClub || currentSeason?.club || '未填写'}；位置：${state.player.primaryPosition || '未填写'}；职业阶段：${CAREER_STAGE_LABELS[state.player.careerStage] || state.player.careerStage}；队内角色：${SQUAD_ROLE_LABELS[state.player.squadRole] || state.player.squadRole}。`);
 
   if (currentSeason && summary) {
-    lines.push(`当前赛季：${currentSeason.label || currentSeason.id}，${summary.appearances}次出场，${summary.starts}次首发，${summary.goals}球${summary.assists}助攻。`);
+    lines.push(`当前赛季：${currentSeason.label || currentSeason.id}，${summary.appearances}次出场，${summary.starts}次首发，${summary.minutes}分钟，${summary.goals}球${summary.assists}助攻。`);
   }
 
   if (recentMatches.length) {
@@ -71,7 +90,9 @@ export function buildPromptSummary(state, options = {}) {
 
   if (includeAbilities) {
     const abilities = getAbilities(state);
-    lines.push(`能力：${ABILITY_KEYS.map((key) => `${ABILITY_LABELS[key]}${abilities[key]}`).join('，')}。`);
+    lines.push(includeFullAbilities
+      ? `能力：${ABILITY_KEYS.map((key) => `${ABILITY_LABELS[key]}${abilities[key]}`).join('，')}。`
+      : abilityStrengthSummary(abilities));
   }
 
   if (includeMiscellaneous) {
@@ -79,6 +100,11 @@ export function buildPromptSummary(state, options = {}) {
     if (misc.length) {
       lines.push(`杂项：${misc.map((item) => `${item.key}=${item.value}`).join('；')}。`);
     }
+  }
+
+  const pendingDrafts = getPendingDraftCount(state);
+  if (pendingDrafts) {
+    lines.push(`当前有${pendingDrafts}条待确认账本草稿，尚未写入正式数据。`);
   }
 
   lines.push('</football_career_ledger>');

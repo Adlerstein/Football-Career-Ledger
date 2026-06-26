@@ -1,4 +1,5 @@
 import { createExampleState } from '../src/import-export.js';
+import { migrateState } from '../src/schema.js';
 
 export function exampleState() {
   return createExampleState();
@@ -26,5 +27,5 @@ export function makeManyMatches(count = 500) {
     notable: index % 100 === 0,
     notes: '',
   }));
-  return state;
+  return migrateState(state);
 }

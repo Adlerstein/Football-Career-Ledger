@@ -1,7 +1,8 @@
 import { DEFAULT_SETTINGS, EXTENSION_ID, PROMPT_KEY } from './src/constants.js';
 import { buildPromptSummary } from './src/prompt.js';
 import { createPublicApi, runApiSelfCheck } from './src/public-api.js';
-import { copyBranchState, readLedgerState } from './src/storage.js';
+import { copyBranchState, readLedgerState, writeLedgerState } from './src/storage.js';
+import { addSuggestionDrafts } from './src/suggestions.js';
 import { LedgerUi } from './src/ui.js';
 
 let context = null;
@@ -9,6 +10,7 @@ let api = null;
 let ui = null;
 let settings = null;
 const PROMPT_IN_CHAT_DEPTH = 1;
+const processedMessageKeys = new Set();
 
 function getSettings() {
   context.extensionSettings[EXTENSION_ID] = {
@@ -47,6 +49,7 @@ async function updatePromptInjection() {
 function applySettingsToForm(root) {
   root.querySelector('#fcl_enabled').checked = Boolean(settings.enabled);
   root.querySelector('#fcl_prompt_injection').checked = Boolean(settings.promptInjectionEnabled);
+  root.querySelector('#fcl_prompt_preset').value = settings.promptPreset || 'standard';
   root.querySelector('#fcl_prompt_max_chars').value = String(settings.promptMaxChars);
   root.querySelector('#fcl_recent_match_limit').value = String(settings.recentMatchLimit);
   root.querySelector('#fcl_include_contracts').checked = Boolean(settings.includeContracts);
@@ -73,6 +76,7 @@ function bindSettings(root) {
   const updateSetting = () => {
     settings.enabled = root.querySelector('#fcl_enabled').checked;
     settings.promptInjectionEnabled = root.querySelector('#fcl_prompt_injection').checked;
+    settings.promptPreset = root.querySelector('#fcl_prompt_preset').value || 'standard';
     settings.promptMaxChars = Math.max(100, Math.min(10000, Number(root.querySelector('#fcl_prompt_max_chars').value || 2000)));
     settings.recentMatchLimit = Math.max(0, Math.min(10, Number(root.querySelector('#fcl_recent_match_limit').value || 3)));
     settings.includeContracts = root.querySelector('#fcl_include_contracts').checked;
@@ -84,7 +88,7 @@ function bindSettings(root) {
     ui?.refresh();
   };
 
-  root.querySelectorAll('input').forEach((element) => {
+  root.querySelectorAll('input, select').forEach((element) => {
     element.addEventListener('change', updateSetting);
   });
 
@@ -97,6 +101,46 @@ function bindSettings(root) {
       root.querySelector('#fcl_manager_panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     }
   });
+}
+
+function getMessageById(messageId) {
+  const chat = context?.chat || globalThis.chat;
+  if (!chat) return null;
+  return chat[messageId] || null;
+}
+
+function getMessageText(message) {
+  return message?.mes || message?.message || message?.text || message?.content || '';
+}
+
+async function processAssistantMessage(messageId, eventType = 'message') {
+  if (!settings?.enabled) return;
+  const message = getMessageById(messageId);
+  if (!message || message.is_user || message.is_system) return;
+  const text = getMessageText(message);
+  if (!text.includes('<football_ledger_suggestion')) return;
+  const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : Number(message.swipe_id ?? 0) || 0;
+  const key = `${context.getCurrentChatId?.() || context.chatId || ''}:${messageId}:${swipeId}`;
+  if (processedMessageKeys.has(key)) return;
+  processedMessageKeys.add(key);
+  try {
+    let added = 0;
+    await writeLedgerState(context, (state) => {
+      const result = addSuggestionDrafts(state, text, {
+        chatId: context.getCurrentChatId?.() || context.chatId || '',
+        messageId: String(messageId),
+        swipeId,
+      });
+      added = result.added;
+      return result.state;
+    });
+    if (added > 0) {
+      await updatePromptInjection();
+      await ui?.refresh();
+    }
+  } catch (error) {
+    console.warn('[football-career-ledger] suggestion parsing failed', error);
+  }
 }
 
 async function mountSettings() {
@@ -132,8 +176,15 @@ function registerEvents() {
   const eventSource = context.eventSource;
   const types = context.eventTypes;
   eventSource?.on(types.CHAT_CHANGED, async () => {
+    processedMessageKeys.clear();
     await updatePromptInjection();
     await ui?.refresh();
+  });
+  eventSource?.on(types.MESSAGE_RECEIVED, async (messageId) => {
+    await processAssistantMessage(messageId, 'received');
+  });
+  eventSource?.on(types.GENERATION_ENDED, async (messageId) => {
+    await processAssistantMessage(messageId, 'generation');
   });
   eventSource?.on(types.CHAT_BRANCH_CREATED, async (payload) => {
     try {

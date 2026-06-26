@@ -76,8 +76,22 @@
   margin: 0;
 }
 
+.fcl-card .fcl-actionbar {
+  margin-top: 0.55rem;
+}
+
 .fcl-wide {
   grid-column: 1 / -1;
+}
+
+.fcl-editor {
+  border-block: 1px solid var(--SmartThemeBorderColor);
+  padding-block: 0.65rem;
+  margin-block: 0.75rem;
+}
+
+.fcl-editor h3 {
+  margin-top: 0;
 }
 
 .fcl-form {
@@ -120,11 +134,15 @@
 
 .fcl-list-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) repeat(4, auto);
   gap: 0.4rem;
   align-items: center;
   padding: 0.45rem 0;
   border-bottom: 1px solid var(--SmartThemeBorderColor);
+}
+
+.fcl-draft-row {
+  grid-template-columns: minmax(0, 1fr) repeat(5, auto);
 }
 
 .fcl-small {
@@ -162,9 +180,21 @@
 
   .fcl-list-row {
     grid-template-columns: 1fr;
+    padding: 0.65rem 0;
   }
 
   .fcl-list-row .menu_button {
     width: 100%;
+    min-height: 2.75rem;
+  }
+
+  .fcl-tabs .menu_button {
+    min-width: 5rem;
+  }
+
+  .fcl-toolbar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.35rem;
   }
 }

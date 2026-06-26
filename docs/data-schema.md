@@ -2,16 +2,20 @@
 
 `football-career-ledger` 使用 Luker Chat State 保存每个聊天独立的 JSON 对象，命名空间固定为 `football-career-ledger`。
 
-顶层结构：
+## 顶层结构
 
 ```js
 {
-  schemaVersion: 1,
+  schemaVersion: 2,
   meta: { createdAt: "", updatedAt: "" },
   player: {
     name: "",
     currentClub: "",
+    currentTeam: "",
     primaryPosition: "",
+    secondaryPositions: [],
+    careerStage: "youth",
+    squadRole: "rotation",
     currentSeasonId: "",
     defaultCurrency: "DEM"
   },
@@ -20,17 +24,61 @@
   contracts: [],
   finance: { openingBalances: [], transactions: [] },
   abilities: { current: {}, history: [] },
-  miscellaneous: []
+  miscellaneous: [],
+  drafts: [],
+  operationHistory: []
 }
 ```
 
-设计约束：
+## 记录元数据
+
+比赛、赛季、合同、期初余额、财务流水、能力历史和杂项记录都包含：
+
+```js
+meta: {
+  createdAt: "",
+  updatedAt: "",
+  source: {
+    type: "manual",
+    messageId: null,
+    swipeId: null,
+    draftId: null
+  }
+}
+```
+
+`source.type` 支持 `manual`、`assistant_suggestion`、`import`、`migration`、`system`。
+
+## 草稿
+
+草稿只代表模型或用户提供的待确认建议，不是正式事实：
+
+```js
+{
+  id: "",
+  type: "match",
+  status: "pending",
+  payload: {},
+  source: {
+    messageId: "",
+    swipeId: 0,
+    suggestionIndex: 0,
+    contentHash: ""
+  },
+  validationErrors: [],
+  createdAt: "",
+  updatedAt: "",
+  resolvedAt: null
+}
+```
+
+支持类型：`match`、`contract`、`transaction`、`ability_change`、`miscellaneous`。
+
+## 设计约束
 
 - 赛季累计不保存为权威字段，由 `matches` 实时计算。
+- 财务余额始终由期初余额和流水按币种计算。
 - 金额使用整数最小货币单位，不使用浮点数。
-- 财务余额按币种分别计算，不做汇率换算。
-- 能力值范围为 `0..99`，UI 修改能力时会追加历史记录。
-- `miscellaneous` 只用于少量结构化事实，不作为自然语言记忆库。
-- 未来版本必须通过 `schemaVersion` 迁移。
-
-导入 JSON 时会先解析和校验，失败不会覆盖当前聊天原数据。
+- 能力值范围为 `0..99`，正式修改必须追加历史记录。
+- 操作历史只保留最近有限条目，用于撤销最近操作，不是完整事件溯源。
+- 导入 JSON 会先迁移和校验，失败不会覆盖当前聊天原数据。

@@ -5,13 +5,13 @@ import { queryMatches, summarizeSeason } from '../src/selectors.js';
 import { validateState } from '../src/validation.js';
 import { makeManyMatches } from './helpers.js';
 
-test('handles 500 matches with bounded queries and summaries', () => {
-  const state = makeManyMatches(500);
+test('handles 1000 matches with bounded queries and summaries', () => {
+  const state = makeManyMatches(1000);
   assert.doesNotThrow(() => validateState(state));
 
   const summary = summarizeSeason(state, '1998-99');
-  assert.equal(summary.matchCount, 500);
-  assert.equal(summary.appearances, 500);
+  assert.equal(summary.matchCount, 1000);
+  assert.equal(summary.appearances, 1000);
 
   const cupRows = queryMatches(state, { competition: '杯赛', limit: 25 });
   assert.equal(cupRows.length, 25);

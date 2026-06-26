@@ -1,8 +1,8 @@
 # 记忆图集成边界
 
-本插件在 `v0.1.0` 只注册只读 API，不修改 Luker 内置记忆图，也不会主动写入记忆图。
+本插件在 `v0.4.0` 不修改 Luker 内置记忆图，也不会主动写入记忆图。
 
-注册 API 不会让记忆图自动调用本插件。必须由记忆图本身或一个独立桥接插件主动调用：
+本版本只提供只读 API：
 
 ```js
 const api = Luker.getContext().getExtensionApi('football-career-ledger');
@@ -22,4 +22,10 @@ const projection = await api.getMemoryProjection({ notableMatchLimit: 10 });
 }
 ```
 
-普通比赛不会默认出现在 `notableMatches` 中，只有 `notable: true` 的比赛才会返回。
+边界：
+
+- 不开发独立记忆图桥接项目。
+- 不修改 Luker 记忆图核心代码。
+- 不把待确认草稿作为已发生事实输出。
+- 记忆图不是比赛、合同、财务、能力和职业履历的权威来源。
+- 插件账本仍然是权威结构化数据源。

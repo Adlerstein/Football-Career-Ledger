@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPublicApi } from '../src/public-api.js';
+import { createDraft } from '../src/ledger-actions.js';
+import { buildPromptSummary } from '../src/prompt.js';
 import { getActiveContract, getFinanceSummary, queryMatches, summarizeSeason } from '../src/selectors.js';
 import { exampleState } from './helpers.js';
 
@@ -47,7 +49,26 @@ test('query matches supports filters and safe limits', () => {
 test('public api returns isolated objects', async () => {
   const state = exampleState();
   const api = createPublicApi(async () => state);
+  assert.equal(api.apiVersion, 2);
   const snapshot = await api.getSnapshot();
   snapshot.player.name = 'changed';
   assert.notEqual(state.player.name, 'changed');
+  assert.equal(await api.getBalance('DEM'), 28000);
+  assert.ok(Array.isArray(await api.getAllBalances()));
+  assert.equal(await api.getPendingDraftCount(), 0);
+  assert.ok(await api.getSuggestionSchema('match'));
+  assert.equal(typeof await api.getPromptPresetSummary('minimal'), 'string');
+});
+
+test('prompt presets do not inject pending draft facts', () => {
+  const state = exampleState();
+  createDraft(state, {
+    type: 'match',
+    status: 'pending',
+    payload: { opponent: '不应进入事实摘要', goals: 9 },
+    source: { messageId: 'm1', swipeId: 0, suggestionIndex: 0, contentHash: 'hash' },
+  });
+  const summary = buildPromptSummary(state, { preset: 'full', maxChars: 2000 });
+  assert.match(summary, /当前有1条待确认账本草稿/);
+  assert.doesNotMatch(summary, /不应进入事实摘要/);
 });

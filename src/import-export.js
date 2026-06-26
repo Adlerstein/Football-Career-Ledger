@@ -23,6 +23,8 @@ export function buildImportSummary(state) {
     transactions: state.finance.transactions.length,
     abilityHistory: state.abilities.history.length,
     miscellaneous: state.miscellaneous.length,
+    drafts: state.drafts.length,
+    operationHistory: state.operationHistory.length,
   };
 }
 
@@ -33,7 +35,7 @@ export function exportStateJson(state) {
 
 export function createExampleState() {
   const state = migrateState({
-    schemaVersion: 1,
+    schemaVersion: 2,
     meta: {
       createdAt: '1998-07-01T00:00:00.000Z',
       updatedAt: '1998-09-01T00:00:00.000Z',
@@ -41,7 +43,11 @@ export function createExampleState() {
     player: {
       name: '未命名',
       currentClub: '拜仁慕尼黑青年队',
+      currentTeam: '拜仁慕尼黑青年队',
       primaryPosition: '中前卫',
+      secondaryPositions: [],
+      careerStage: 'youth',
+      squadRole: 'starter',
       currentSeasonId: '1998-99',
       defaultCurrency: 'DEM',
     },
@@ -130,6 +136,8 @@ export function createExampleState() {
       tags: ['职业阶段'],
       notes: '',
     }],
+    drafts: [],
+    operationHistory: [],
   });
   return state;
 }

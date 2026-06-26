@@ -32,6 +32,7 @@ export function summarizeSeason(state, seasonId = getCurrentSeason(state)?.id) {
     acc.assists += match.assists || 0;
     acc.yellowCards += match.yellowCards || 0;
     acc.redCards += match.redCards || 0;
+    acc.notableMatches += match.notable ? 1 : 0;
     return acc;
   }, {
     appearances: 0,
@@ -41,6 +42,7 @@ export function summarizeSeason(state, seasonId = getCurrentSeason(state)?.id) {
     assists: 0,
     yellowCards: 0,
     redCards: 0,
+    notableMatches: 0,
   });
 
   const averageRating = rated.length
@@ -53,6 +55,20 @@ export function summarizeSeason(state, seasonId = getCurrentSeason(state)?.id) {
     ...totals,
     averageRating,
   };
+}
+
+export function getCareerStatus(state) {
+  return cloneJson({
+    name: state.player.name,
+    currentClub: state.player.currentClub,
+    currentTeam: state.player.currentTeam,
+    primaryPosition: state.player.primaryPosition,
+    secondaryPositions: state.player.secondaryPositions,
+    careerStage: state.player.careerStage,
+    squadRole: state.player.squadRole,
+    currentSeasonId: state.player.currentSeasonId,
+    defaultCurrency: state.player.defaultCurrency,
+  });
 }
 
 export function queryMatches(state, options = {}) {
@@ -104,6 +120,15 @@ export function getFinanceSummary(state) {
   };
 }
 
+export function getBalance(state, currency) {
+  const row = getFinanceSummary(state).balances.find((item) => item.currency === currency);
+  return row ? row.amountMinor : 0;
+}
+
+export function getAllBalances(state) {
+  return cloneJson(getFinanceSummary(state).balances);
+}
+
 export function queryTransactions(state, options = {}) {
   const limit = clampLimit(options.limit, 25);
   let rows = state.finance.transactions.slice();
@@ -135,6 +160,38 @@ export function getMiscellaneous(state, options = {}) {
   return cloneJson(rows.slice(0, limit));
 }
 
+export function getDrafts(state, options = {}) {
+  const limit = clampLimit(options.limit, 25);
+  let rows = state.drafts.slice();
+  if (options.status) rows = rows.filter((draft) => draft.status === options.status);
+  if (options.type) rows = rows.filter((draft) => draft.type === options.type);
+  rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  return cloneJson(rows.slice(0, limit));
+}
+
+export function getDraft(state, id) {
+  const draft = state.drafts.find((item) => item.id === id) || null;
+  return draft ? cloneJson(draft) : null;
+}
+
+export function getPendingDraftCount(state) {
+  return state.drafts.filter((draft) => draft.status === 'pending').length;
+}
+
+export function getSeasonClosure(state, seasonId) {
+  const season = state.seasons.find((item) => item.id === seasonId) || null;
+  return season?.closedSummary ? cloneJson(season.closedSummary) : null;
+}
+
+export function getOperationHistory(state, options = {}) {
+  const limit = clampLimit(options.limit, 25);
+  let rows = state.operationHistory.slice();
+  if (options.entityType) rows = rows.filter((operation) => operation.entityType === options.entityType);
+  if (options.includeUndone === false) rows = rows.filter((operation) => !operation.undoneAt);
+  rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
+  return cloneJson(rows.slice(0, limit));
+}
+
 export function getSnapshot(state) {
   return cloneJson({
     ...state,
@@ -143,6 +200,7 @@ export function getSnapshot(state) {
       currentSeasonSummary: summarizeSeason(state),
       activeContract: getActiveContract(state),
       financeSummary: getFinanceSummary(state),
+      pendingDraftCount: getPendingDraftCount(state),
     },
   });
 }

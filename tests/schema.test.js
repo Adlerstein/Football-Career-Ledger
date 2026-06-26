@@ -6,8 +6,11 @@ import { exampleState } from './helpers.js';
 
 test('creates valid initial state', () => {
   const state = createInitialState('2026-06-26T00:00:00.000Z');
-  assert.equal(state.schemaVersion, 1);
+  assert.equal(state.schemaVersion, 2);
   assert.equal(state.player.defaultCurrency, 'DEM');
+  assert.equal(state.player.currentTeam, '');
+  assert.equal(state.player.careerStage, 'youth');
+  assert.equal(state.player.squadRole, 'rotation');
   assert.doesNotThrow(() => validateState(state));
 });
 

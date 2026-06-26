@@ -1,23 +1,63 @@
 import {
   ABILITY_KEYS,
   ABILITY_LABELS,
+  CAREER_STAGE_LABELS,
+  CAREER_STAGE_VALUES,
   CONTRACT_TYPES,
-  DEFAULT_SETTINGS,
-  EXTENSION_ID,
+  DRAFT_STATUS_VALUES,
+  DRAFT_TYPES,
   FINANCE_CATEGORIES,
   HOME_AWAY_VALUES,
+  PROMPT_PRESETS,
+  SQUAD_ROLE_LABELS,
+  SQUAD_ROLE_VALUES,
   TRANSACTION_TYPES,
   WAGE_PERIODS,
 } from './constants.js';
 import { createExampleState, exportStateJson, parseImportJson, buildImportSummary } from './import-export.js';
+import {
+  addContract,
+  addMatch,
+  addMiscellaneous,
+  addSeason,
+  addTransaction,
+  applyAbilityChange,
+  closeSeason,
+  confirmDraft,
+  createNextSeason,
+  deleteAbilityHistory,
+  deleteContract,
+  deleteSeason,
+  deleteDraft,
+  deleteMatch,
+  deleteMiscellaneous,
+  deleteOpeningBalance,
+  deleteTransaction,
+  rejectDraft,
+  setActiveContract,
+  setOpeningBalance,
+  undoLastOperation,
+  updateContract,
+  updateAbilityHistory,
+  updateDraft,
+  updateMatch,
+  updateMiscellaneous,
+  updatePlayerStatus,
+  updateSeason,
+  updateTransaction,
+} from './ledger-actions.js';
+import { buildModelSuggestionInstructions } from './suggestions.js';
 import { buildPromptSummary } from './prompt.js';
-import { createId, readLedgerState, replaceLedgerState, clearLedgerState, writeLedgerState, upsertById } from './storage.js';
+import { readLedgerState, replaceLedgerState, clearLedgerState, writeLedgerState } from './storage.js';
 import {
   getAbilities,
   getActiveContract,
   getCurrentSeason,
+  getDrafts,
   getFinanceSummary,
   getMiscellaneous,
+  getOperationHistory,
+  getPendingDraftCount,
   queryMatches,
   queryTransactions,
   summarizeSeason,
@@ -25,7 +65,9 @@ import {
 
 const tabDefs = [
   ['overview', '概览'],
+  ['drafts', '草稿'],
   ['matches', '比赛'],
+  ['seasons', '赛季'],
   ['contracts', '合同'],
   ['finance', '财务'],
   ['abilities', '能力'],
@@ -67,10 +109,18 @@ function select(name, value, options) {
   const el = h('select', { name });
   for (const option of options) {
     const opt = h('option', { value: option.value ?? option, text: option.label ?? option });
-    opt.selected = (option.value ?? option) === value;
+    opt.selected = String(option.value ?? option) === String(value ?? '');
     el.append(opt);
   }
   return el;
+}
+
+function optionRows(rows, emptyLabel = '未选择') {
+  return [{ value: '', label: emptyLabel }, ...rows.map((row) => ({ value: row.id, label: row.label || row.id }))];
+}
+
+function enumRows(values, labels = {}) {
+  return values.map((value) => ({ value, label: labels[value] || value }));
 }
 
 function formDataObject(form) {
@@ -86,8 +136,8 @@ function boolValue(value) {
   return value === 'on' || value === 'true' || value === true;
 }
 
-function optionsFromRows(rows, emptyLabel = '未选择') {
-  return [{ value: '', label: emptyLabel }, ...rows.map((row) => ({ value: row.id, label: row.label || row.id }))];
+function today() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 function setStatus(root, message, kind = 'info') {
@@ -107,338 +157,516 @@ async function submitWithStatus(root, message, action) {
   }
 }
 
-function renderSummaryCards(state) {
+function parseJsonField(value) {
+  if (!String(value || '').trim()) return {};
+  return JSON.parse(value);
+}
+
+function actionbar(buttons) {
+  return h('div', { class: 'fcl-actionbar' }, buttons);
+}
+
+function card(title, body, actions = []) {
+  return h('section', { class: 'fcl-card' }, [
+    h('h4', { text: title }),
+    typeof body === 'string' ? h('p', { text: body }) : body,
+    actions.length ? actionbar(actions) : null,
+  ]);
+}
+
+function renderRecordForm(title, fields, submitLabel, onSubmit) {
+  const form = h('form', { class: 'fcl-form' }, [
+    ...fields,
+    h('button', { type: 'submit', class: 'menu_button', text: submitLabel }),
+  ]);
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    await onSubmit(formDataObject(form), form);
+  });
+  return h('section', { class: 'fcl-editor' }, [h('h3', { text: title }), form]);
+}
+
+function renderSummaryCards(state, actions) {
   const season = getCurrentSeason(state);
   const summary = summarizeSeason(state, season?.id);
   const contract = getActiveContract(state);
   const finance = getFinanceSummary(state);
   const abilities = getAbilities(state);
   const recent = queryMatches(state, { seasonId: season?.id, limit: 3 });
+  const operations = getOperationHistory(state, { limit: 3 });
+  const pendingDrafts = getPendingDraftCount(state);
   const grid = h('div', { class: 'fcl-summary-grid' });
-  const cards = [
+
+  [
     ['球员', `${state.player.name || '未命名'} / ${state.player.primaryPosition || '未填写位置'}`],
-    ['球队', state.player.currentClub || season?.club || '未填写'],
-    ['当前赛季', season ? `${season.label || season.id}：${summary.appearances}场 ${summary.goals}球 ${summary.assists}助` : '未设置'],
+    ['俱乐部与队伍', `${state.player.currentClub || '未填写'} / ${state.player.currentTeam || '未填写'}`],
+    ['职业状态', `${CAREER_STAGE_LABELS[state.player.careerStage] || state.player.careerStage} / ${SQUAD_ROLE_LABELS[state.player.squadRole] || state.player.squadRole}`],
+    ['当前赛季', season && summary ? `${season.label || season.id}：${summary.appearances}场 ${summary.goals}球 ${summary.assists}助` : '未设置'],
     ['活动合同', contract ? `${contract.club} ${contract.wageAmountMinor} ${contract.wageCurrency}/${contract.wagePeriod}` : '无'],
     ['余额', finance.balances.length ? finance.balances.map((row) => `${row.currency} ${row.amountMinor}`).join('；') : '无'],
-    ['能力', ABILITY_KEYS.map((key) => `${ABILITY_LABELS[key]}${abilities[key]}`).join(' / ')],
-  ];
-  for (const [title, body] of cards) {
-    grid.append(h('section', { class: 'fcl-card' }, [h('h4', { text: title }), h('p', { text: body })]));
-  }
-  grid.append(h('section', { class: 'fcl-card fcl-wide' }, [
-    h('h4', { text: '最近三场比赛' }),
-    recent.length ? h('ul', {}, recent.map((match) => h('li', { text: `${match.date} ${match.opponent} ${match.goalsFor}-${match.goalsAgainst}` }))) : h('p', { text: '暂无比赛' }),
+    ['能力概况', ABILITY_KEYS.map((key) => `${ABILITY_LABELS[key]}${abilities[key]}`).join(' / ')],
+    ['待确认草稿', `${pendingDrafts} 条`],
+  ].forEach(([title, body]) => grid.append(card(title, body)));
+
+  grid.append(card('最近比赛', recent.length
+    ? h('ul', {}, recent.map((match) => h('li', { text: `${match.date} ${match.opponent} ${match.goalsFor}-${match.goalsAgainst}` })))
+    : '暂无比赛'));
+  grid.append(card('最近操作', operations.length
+    ? h('ul', {}, operations.map((operation) => h('li', { text: `${operation.createdAt.slice(0, 10)} ${operation.type}${operation.undoneAt ? '（已撤销）' : ''}` })))
+    : '暂无操作', [
+    h('button', { type: 'button', class: 'menu_button', text: '撤销最近操作', onclick: actions.undo }),
   ]));
   return grid;
 }
 
-function playerSeasonForm(state, save) {
-  const form = h('form', { class: 'fcl-form' }, [
-    field('球员姓名', input('name', state.player.name)),
-    field('当前球队', input('currentClub', state.player.currentClub)),
-    field('主要位置', input('primaryPosition', state.player.primaryPosition)),
-    field('默认币种', input('defaultCurrency', state.player.defaultCurrency)),
-    field('赛季ID', input('seasonId', state.player.currentSeasonId || '1998-99')),
-    field('赛季标签', input('seasonLabel', getCurrentSeason(state)?.label || '1998/99')),
-    field('赛季球队', input('seasonClub', getCurrentSeason(state)?.club || state.player.currentClub)),
-    h('button', { type: 'submit', class: 'menu_button', text: '保存概览' }),
-  ]);
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(form);
-    await save((draft) => {
-      const seasonId = String(data.seasonId || '').trim();
-      draft.player = {
-        ...draft.player,
+function renderOverview(state, actions) {
+  const currentSeason = getCurrentSeason(state);
+  return h('div', {}, [
+    renderSummaryCards(state, actions),
+    renderRecordForm('基础资料', [
+      field('球员姓名', input('name', state.player.name)),
+      field('当前俱乐部', input('currentClub', state.player.currentClub)),
+      field('当前队伍', input('currentTeam', state.player.currentTeam)),
+      field('主要位置', input('primaryPosition', state.player.primaryPosition)),
+      field('副位置（逗号分隔）', input('secondaryPositions', state.player.secondaryPositions.join(', '))),
+      field('职业阶段', select('careerStage', state.player.careerStage, enumRows(CAREER_STAGE_VALUES, CAREER_STAGE_LABELS))),
+      field('队内角色', select('squadRole', state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
+      field('默认币种', input('defaultCurrency', state.player.defaultCurrency)),
+      field('当前赛季ID', input('currentSeasonId', state.player.currentSeasonId || currentSeason?.id || '')),
+    ], '保存基础资料', async (data) => {
+      await actions.save((draft) => updatePlayerStatus(draft, {
         name: String(data.name || ''),
         currentClub: String(data.currentClub || ''),
+        currentTeam: String(data.currentTeam || ''),
         primaryPosition: String(data.primaryPosition || ''),
+        secondaryPositions: String(data.secondaryPositions || '').split(',').map((item) => item.trim()).filter(Boolean),
+        careerStage: String(data.careerStage || 'youth'),
+        squadRole: String(data.squadRole || 'rotation'),
         defaultCurrency: String(data.defaultCurrency || 'DEM').trim() || 'DEM',
-        currentSeasonId: seasonId,
-      };
-      if (seasonId) {
-        const season = {
-          id: seasonId,
-          label: String(data.seasonLabel || seasonId),
-          club: String(data.seasonClub || data.currentClub || ''),
-          startedAt: getCurrentSeason(draft)?.startedAt || '1998-07-01',
-          endedAt: null,
-          status: 'active',
-          notes: '',
-        };
-        draft.seasons = draft.seasons.map((row) => row.id === seasonId ? { ...row, ...season } : { ...row, status: row.status === 'active' ? 'completed' : row.status });
-        if (!draft.seasons.some((row) => row.id === seasonId)) draft.seasons.unshift(season);
-      }
-      return draft;
-    });
-  });
-  return form;
-}
-
-function renderOverview(state, save) {
-  return h('div', {}, [renderSummaryCards(state), h('h3', { text: '基础资料' }), playerSeasonForm(state, save)]);
-}
-
-function renderMatches(state, save) {
-  const currentSeason = getCurrentSeason(state);
-  const list = queryMatches(state, { limit: 50 });
-  const form = h('form', { class: 'fcl-form' }, [
-    field('赛季', select('seasonId', currentSeason?.id || '', optionsFromRows(state.seasons, '请选择赛季'))),
-    field('日期', input('date', new Date().toISOString().slice(0, 10), { type: 'date' })),
-    field('赛事', input('competition', '')),
-    field('球队', input('club', state.player.currentClub || currentSeason?.club || '')),
-    field('对手', input('opponent', '')),
-    field('主客场', select('homeAway', 'home', HOME_AWAY_VALUES)),
-    field('进球', input('goalsFor', '0', { type: 'number', min: '0' })),
-    field('失球', input('goalsAgainst', '0', { type: 'number', min: '0' })),
-    field('首发', h('input', { name: 'started', type: 'checkbox' })),
-    field('分钟', input('minutes', '0', { type: 'number', min: '0', max: '130' })),
-    field('个人进球', input('goals', '0', { type: 'number', min: '0' })),
-    field('助攻', input('assists', '0', { type: 'number', min: '0' })),
-    field('黄牌', input('yellowCards', '0', { type: 'number', min: '0' })),
-    field('红牌', input('redCards', '0', { type: 'number', min: '0' })),
-    field('评分', input('rating', '', { type: 'number', min: '0', max: '10', step: '0.1' })),
-    field('重要比赛', h('input', { name: 'notable', type: 'checkbox' })),
-    field('备注', textarea('notes')),
-    h('button', { type: 'submit', class: 'menu_button', text: '新增比赛' }),
-  ]);
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(form);
-    await save((draft) => {
-      draft.matches = upsertById(draft.matches, {
-        id: createId('match'),
-        seasonId: String(data.seasonId || ''),
-        date: String(data.date || ''),
-        competition: String(data.competition || ''),
-        club: String(data.club || ''),
-        opponent: String(data.opponent || ''),
-        homeAway: String(data.homeAway || 'home'),
-        goalsFor: numberValue(data.goalsFor),
-        goalsAgainst: numberValue(data.goalsAgainst),
-        started: boolValue(data.started),
-        minutes: numberValue(data.minutes),
-        goals: numberValue(data.goals),
-        assists: numberValue(data.assists),
-        yellowCards: numberValue(data.yellowCards),
-        redCards: numberValue(data.redCards),
-        rating: data.rating === '' ? null : numberValue(data.rating),
-        notable: boolValue(data.notable),
-        notes: String(data.notes || ''),
-      });
-      return draft;
-    });
-    form.reset();
-  });
-
-  const rows = list.map((match) => h('li', { class: 'fcl-list-row' }, [
-    h('span', { text: `${match.date} ${match.competition} ${match.opponent} ${match.goalsFor}-${match.goalsAgainst}` }),
-    h('button', {
-      type: 'button',
-      class: 'menu_button fcl-small',
-      text: '删除',
-      onclick: () => {
-        if (!confirm('确认删除这场比赛？')) return;
-        save((draft) => ({ ...draft, matches: draft.matches.filter((row) => row.id !== match.id) }));
-      },
+        currentSeasonId: String(data.currentSeasonId || ''),
+      }));
     }),
-  ]));
-  return h('div', {}, [h('h3', { text: '新增比赛' }), form, h('h3', { text: '最近比赛' }), h('ul', { class: 'fcl-list' }, rows)]);
+  ]);
 }
 
-function renderContracts(state, save) {
-  const form = h('form', { class: 'fcl-form' }, [
-    field('俱乐部', input('club', state.player.currentClub)),
-    field('类型', select('contractType', 'youth', CONTRACT_TYPES)),
-    field('开始日期', input('startDate', new Date().toISOString().slice(0, 10), { type: 'date' })),
-    field('结束日期', input('endDate', '', { type: 'date' })),
-    field('薪资最小单位', input('wageAmountMinor', '0', { type: 'number', min: '1' })),
-    field('币种', input('wageCurrency', state.player.defaultCurrency || 'DEM')),
-    field('周期', select('wagePeriod', 'weekly', WAGE_PERIODS)),
-    field('设为活动合同', h('input', { name: 'active', type: 'checkbox' })),
-    field('奖金', textarea('bonuses')),
-    field('条款', textarea('clauses')),
-    field('备注', textarea('notes')),
-    h('button', { type: 'submit', class: 'menu_button', text: '新增合同' }),
-  ]);
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(form);
-    await save((draft) => {
-      const active = boolValue(data.active);
-      if (active && draft.contracts.some((row) => row.active) && !confirm('已有活动合同。是否停用原活动合同并启用新合同？')) {
-        return draft;
-      }
-      if (active) draft.contracts = draft.contracts.map((row) => ({ ...row, active: false }));
-      draft.contracts.unshift({
-        id: createId('contract'),
-        club: String(data.club || ''),
-        contractType: String(data.contractType || 'other'),
-        startDate: String(data.startDate || ''),
-        endDate: data.endDate ? String(data.endDate) : null,
-        wageAmountMinor: numberValue(data.wageAmountMinor),
-        wageCurrency: String(data.wageCurrency || ''),
-        wagePeriod: String(data.wagePeriod || 'weekly'),
-        bonuses: String(data.bonuses || ''),
-        clauses: String(data.clauses || ''),
-        active,
-        notes: String(data.notes || ''),
-      });
-      return draft;
-    });
-    form.reset();
-  });
-
-  const rows = state.contracts.map((contract) => h('li', { class: 'fcl-list-row' }, [
-    h('span', { text: `${contract.active ? '活动：' : ''}${contract.club} ${contract.startDate} - ${contract.endDate || '未定'} ${contract.wageAmountMinor} ${contract.wageCurrency}` }),
-    h('button', { type: 'button', class: 'menu_button fcl-small', text: contract.active ? '停用' : '启用', onclick: () => save((draft) => ({ ...draft, contracts: draft.contracts.map((row) => ({ ...row, active: row.id === contract.id ? !contract.active : false })) })) }),
-    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该合同？') && save((draft) => ({ ...draft, contracts: draft.contracts.filter((row) => row.id !== contract.id) })) }),
-  ]));
-  return h('div', {}, [form, h('ul', { class: 'fcl-list' }, rows)]);
+function matchFields(state, match = {}) {
+  const currentSeason = getCurrentSeason(state);
+  return [
+    field('赛季', select('seasonId', match.seasonId || currentSeason?.id || '', optionRows(state.seasons, '请选择赛季'))),
+    field('日期', input('date', match.date || today(), { type: 'date' })),
+    field('赛事', input('competition', match.competition || '')),
+    field('球队', input('club', match.club || state.player.currentTeam || state.player.currentClub || currentSeason?.club || '')),
+    field('对手', input('opponent', match.opponent || '')),
+    field('主客场', select('homeAway', match.homeAway || 'home', HOME_AWAY_VALUES)),
+    field('进球', input('goalsFor', match.goalsFor ?? 0, { type: 'number', min: '0' })),
+    field('失球', input('goalsAgainst', match.goalsAgainst ?? 0, { type: 'number', min: '0' })),
+    field('首发', h('input', { name: 'started', type: 'checkbox', checked: match.started })),
+    field('分钟', input('minutes', match.minutes ?? 0, { type: 'number', min: '0', max: '130' })),
+    field('个人进球', input('goals', match.goals ?? 0, { type: 'number', min: '0' })),
+    field('助攻', input('assists', match.assists ?? 0, { type: 'number', min: '0' })),
+    field('黄牌', input('yellowCards', match.yellowCards ?? 0, { type: 'number', min: '0' })),
+    field('红牌', input('redCards', match.redCards ?? 0, { type: 'number', min: '0' })),
+    field('评分', input('rating', match.rating ?? '', { type: 'number', min: '0', max: '10', step: '0.1' })),
+    field('重要比赛', h('input', { name: 'notable', type: 'checkbox', checked: match.notable })),
+    field('备注', textarea('notes', match.notes || '')),
+  ];
 }
 
-function renderFinance(state, save) {
-  const balances = getFinanceSummary(state).balances;
-  const balanceForm = h('form', { class: 'fcl-form fcl-compact-form' }, [
-    field('币种', input('currency', state.player.defaultCurrency || 'DEM')),
-    field('期初余额', input('amountMinor', '0', { type: 'number' })),
-    h('button', { type: 'submit', class: 'menu_button', text: '设置期初余额' }),
-  ]);
-  balanceForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(balanceForm);
-    await save((draft) => {
-      const currency = String(data.currency || '').trim();
-      draft.finance.openingBalances = [
-        ...draft.finance.openingBalances.filter((row) => row.currency !== currency),
-        { currency, amountMinor: numberValue(data.amountMinor) },
-      ];
-      return draft;
-    });
-  });
+function matchPayload(data) {
+  return {
+    seasonId: String(data.seasonId || ''),
+    date: String(data.date || ''),
+    competition: String(data.competition || ''),
+    club: String(data.club || ''),
+    opponent: String(data.opponent || ''),
+    homeAway: String(data.homeAway || 'home'),
+    goalsFor: numberValue(data.goalsFor),
+    goalsAgainst: numberValue(data.goalsAgainst),
+    started: boolValue(data.started),
+    minutes: numberValue(data.minutes),
+    goals: numberValue(data.goals),
+    assists: numberValue(data.assists),
+    yellowCards: numberValue(data.yellowCards),
+    redCards: numberValue(data.redCards),
+    rating: data.rating === '' ? null : numberValue(data.rating),
+    notable: boolValue(data.notable),
+    notes: String(data.notes || ''),
+  };
+}
 
-  const transactionForm = h('form', { class: 'fcl-form' }, [
-    field('日期', input('date', new Date().toISOString().slice(0, 10), { type: 'date' })),
-    field('类型', select('type', 'income', TRANSACTION_TYPES)),
-    field('类别', select('category', 'salary', FINANCE_CATEGORIES)),
-    field('金额最小单位', input('amountMinor', '1', { type: 'number', min: '1' })),
-    field('币种', input('currency', state.player.defaultCurrency || 'DEM')),
-    field('说明', input('description', '')),
-    field('备注', textarea('notes')),
-    h('button', { type: 'submit', class: 'menu_button', text: '新增流水' }),
-  ]);
-  transactionForm.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(transactionForm);
-    await save((draft) => {
-      draft.finance.transactions.unshift({
-        id: createId('transaction'),
-        date: String(data.date || ''),
-        type: String(data.type || 'income'),
-        category: String(data.category || 'other'),
-        amountMinor: numberValue(data.amountMinor),
-        currency: String(data.currency || ''),
-        description: String(data.description || ''),
-        relatedContractId: null,
-        notes: String(data.notes || ''),
-      });
-      return draft;
-    });
-    transactionForm.reset();
-  });
-
-  const rows = queryTransactions(state, { limit: 50 }).map((row) => h('li', { class: 'fcl-list-row' }, [
-    h('span', { text: `${row.date} ${row.type} ${row.category} ${row.amountMinor} ${row.currency} ${row.description}` }),
-    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该流水？') && save((draft) => ({ ...draft, finance: { ...draft.finance, transactions: draft.finance.transactions.filter((item) => item.id !== row.id) } })) }),
+function renderMatches(state, actions) {
+  const list = queryMatches(state, { limit: actions.matchLimit || 50 });
+  const editor = actions.editing?.type === 'match'
+    ? state.matches.find((match) => match.id === actions.editing.id)
+    : null;
+  const rows = list.map((match) => h('li', { class: 'fcl-list-row' }, [
+    h('span', { text: `${match.date} ${match.competition || ''} ${match.opponent} ${match.goalsFor}-${match.goalsAgainst}，${match.minutes}分钟 ${match.goals}球${match.assists}助` }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('match', match.id) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除这场比赛？') && actions.save((draft) => deleteMatch(draft, match.id)) }),
   ]));
   return h('div', {}, [
-    h('h3', { text: '余额' }),
-    h('p', { text: balances.length ? balances.map((row) => `${row.currency}: ${row.amountMinor}`).join('；') : '暂无余额' }),
-    balanceForm,
-    h('h3', { text: '流水' }),
-    transactionForm,
+    editor ? renderRecordForm('编辑比赛', matchFields(state, editor), '保存比赛', async (data) => {
+      await actions.save((draft) => updateMatch(draft, editor.id, matchPayload(data)));
+      actions.clearEditing();
+    }) : renderRecordForm('新增比赛', matchFields(state), '新增比赛', async (data, form) => {
+      await actions.save((draft) => addMatch(draft, matchPayload(data)));
+      form.reset();
+    }),
+    h('h3', { text: '比赛列表' }),
     h('ul', { class: 'fcl-list' }, rows),
   ]);
 }
 
-function renderAbilities(state, save) {
-  const abilities = getAbilities(state);
-  const form = h('form', { class: 'fcl-form' }, [
-    ...ABILITY_KEYS.map((key) => field(ABILITY_LABELS[key], input(key, String(abilities[key]), { type: 'number', min: '0', max: '99' }))),
-    field('变更原因', input('reason', '手动调整')),
-    h('button', { type: 'submit', class: 'menu_button', text: '保存能力并记录变化' }),
-  ]);
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(form);
-    await save((draft) => {
-      for (const key of ABILITY_KEYS) {
-        const before = draft.abilities.current[key] ?? 0;
-        const after = numberValue(data[key]);
-        if (before !== after) {
-          draft.abilities.history.unshift({
-            id: createId('ability'),
-            date: new Date().toISOString().slice(0, 10),
-            ability: key,
-            before,
-            after,
-            reason: String(data.reason || ''),
-            notes: '',
-          });
-          draft.abilities.current[key] = after;
-        }
-      }
-      return draft;
-    });
-  });
-  const history = state.abilities.history.slice(0, 20).map((row) => h('li', { text: `${row.date} ${ABILITY_LABELS[row.ability]} ${row.before} -> ${row.after} ${row.reason || ''}` }));
-  return h('div', {}, [form, h('h3', { text: '最近变化' }), h('ul', { class: 'fcl-list' }, history)]);
+function seasonFields(state, season = {}) {
+  return [
+    field('赛季ID', input('id', season.id || state.player.currentSeasonId || '1998-99')),
+    field('标签', input('label', season.label || '1998/99')),
+    field('俱乐部/队伍', input('club', season.club || state.player.currentTeam || state.player.currentClub)),
+    field('开始日期', input('startedAt', season.startedAt || '1998-07-01', { type: 'date' })),
+    field('结束日期', input('endedAt', season.endedAt || '', { type: 'date' })),
+    field('状态', select('status', season.status || 'active', ['active', 'completed', 'planned'])),
+    field('备注', textarea('notes', season.notes || '')),
+  ];
 }
 
-function renderMisc(state, save) {
-  const form = h('form', { class: 'fcl-form' }, [
-    field('日期', input('date', new Date().toISOString().slice(0, 10), { type: 'date' })),
-    field('键', input('key', '')),
-    field('值', input('value', '')),
-    field('标签（逗号分隔）', input('tags', '')),
-    field('备注', textarea('notes')),
-    h('button', { type: 'submit', class: 'menu_button', text: '新增杂项' }),
-  ]);
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const data = formDataObject(form);
-    await save((draft) => {
-      draft.miscellaneous.unshift({
-        id: createId('misc'),
-        date: String(data.date || ''),
-        key: String(data.key || ''),
-        value: String(data.value || ''),
-        tags: String(data.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean),
-        notes: String(data.notes || ''),
-      });
-      return draft;
-    });
-    form.reset();
+function seasonPayload(data) {
+  return {
+    id: String(data.id || ''),
+    label: String(data.label || data.id || ''),
+    club: String(data.club || ''),
+    startedAt: String(data.startedAt || ''),
+    endedAt: data.endedAt ? String(data.endedAt) : null,
+    status: String(data.status || 'planned'),
+    notes: String(data.notes || ''),
+  };
+}
+
+function renderSeasons(state, actions) {
+  const editor = actions.editing?.type === 'season'
+    ? state.seasons.find((season) => season.id === actions.editing.id)
+    : null;
+  const rows = state.seasons.map((season) => {
+    const summary = summarizeSeason(state, season.id);
+    return h('li', { class: 'fcl-list-row' }, [
+      h('span', { text: `${season.label || season.id} ${season.status} ${summary?.appearances ?? 0}场 ${summary?.goals ?? 0}球 ${summary?.assists ?? 0}助` }),
+      h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('season', season.id) }),
+      h('button', { type: 'button', class: 'menu_button fcl-small', text: '结束', onclick: () => actions.setEditing('closeSeason', season.id) }),
+      h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该赛季？有比赛引用的赛季会被拒绝删除。') && actions.save((draft) => deleteSeason(draft, season.id)) }),
+    ]);
   });
+  const closeTarget = actions.editing?.type === 'closeSeason'
+    ? state.seasons.find((season) => season.id === actions.editing.id)
+    : null;
+  return h('div', {}, [
+    editor ? renderRecordForm('编辑赛季', seasonFields(state, editor), '保存赛季', async (data) => {
+      await actions.save((draft) => updateSeason(draft, editor.id, seasonPayload(data)));
+      actions.clearEditing();
+    }) : renderRecordForm('新增赛季', seasonFields(state), '新增赛季', async (data, form) => {
+      await actions.save((draft) => addSeason(draft, seasonPayload(data)));
+      form.reset();
+    }),
+    closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
+      field('结束日期', input('endedAt', closeTarget.endedAt || today(), { type: 'date' })),
+      field('赛季结果', input('teamOutcome', closeTarget.closedSummary?.teamOutcome || '')),
+      field('球队最终成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '')),
+      field('赛季末队内角色', input('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || '')),
+      field('赛季简短总结', textarea('narrativeSummary', closeTarget.closedSummary?.narrativeSummary || '')),
+      field('团队荣誉（逗号分隔）', input('teamHonors', closeTarget.closedSummary?.teamHonors?.join(', ') || '')),
+      field('个人荣誉（逗号分隔）', input('individualHonors', closeTarget.closedSummary?.individualHonors?.join(', ') || '')),
+    ], '确认结束赛季', async (data) => {
+      if (!confirm('确认正式结束该赛季？关闭后仍保留所有比赛记录。')) return;
+      await actions.save((draft) => closeSeason(draft, closeTarget.id, {
+        endedAt: data.endedAt,
+        teamOutcome: data.teamOutcome,
+        finalStanding: data.finalStanding,
+        roleAtEnd: data.roleAtEnd,
+        narrativeSummary: data.narrativeSummary,
+        teamHonors: String(data.teamHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
+        individualHonors: String(data.individualHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
+      }));
+      actions.clearEditing();
+    }) : null,
+    renderRecordForm('创建下一赛季', [
+      field('赛季ID', input('id', '1999-00')),
+      field('标签', input('label', '1999/00')),
+      field('队伍', input('club', state.player.currentTeam || state.player.currentClub)),
+      field('开始日期', input('startedAt', today(), { type: 'date' })),
+      field('当前俱乐部', input('currentClub', state.player.currentClub)),
+      field('当前队伍', input('currentTeam', state.player.currentTeam)),
+    ], '创建下一赛季', async (data, form) => {
+      await actions.save((draft) => createNextSeason(draft, {
+        id: data.id,
+        label: data.label,
+        club: data.club,
+        startedAt: data.startedAt,
+        currentClub: data.currentClub,
+        currentTeam: data.currentTeam,
+      }));
+      form.reset();
+    }),
+    h('h3', { text: '赛季列表' }),
+    h('ul', { class: 'fcl-list' }, rows),
+  ]);
+}
+
+function contractFields(state, contract = {}) {
+  return [
+    field('俱乐部', input('club', contract.club || state.player.currentClub)),
+    field('类型', select('contractType', contract.contractType || 'youth', CONTRACT_TYPES)),
+    field('开始日期', input('startDate', contract.startDate || today(), { type: 'date' })),
+    field('结束日期', input('endDate', contract.endDate || '', { type: 'date' })),
+    field('薪资最小单位', input('wageAmountMinor', contract.wageAmountMinor ?? 1, { type: 'number', min: '1' })),
+    field('币种', input('wageCurrency', contract.wageCurrency || state.player.defaultCurrency || 'DEM')),
+    field('周期', select('wagePeriod', contract.wagePeriod || 'weekly', WAGE_PERIODS)),
+    field('活动合同', h('input', { name: 'active', type: 'checkbox', checked: contract.active })),
+    field('奖金', textarea('bonuses', contract.bonuses || '')),
+    field('条款', textarea('clauses', contract.clauses || '')),
+    field('备注', textarea('notes', contract.notes || '')),
+  ];
+}
+
+function contractPayload(data) {
+  return {
+    club: String(data.club || ''),
+    contractType: String(data.contractType || 'other'),
+    startDate: String(data.startDate || ''),
+    endDate: data.endDate ? String(data.endDate) : null,
+    wageAmountMinor: numberValue(data.wageAmountMinor, 1),
+    wageCurrency: String(data.wageCurrency || ''),
+    wagePeriod: String(data.wagePeriod || 'weekly'),
+    active: boolValue(data.active),
+    bonuses: String(data.bonuses || ''),
+    clauses: String(data.clauses || ''),
+    notes: String(data.notes || ''),
+  };
+}
+
+function renderContracts(state, actions) {
+  const editor = actions.editing?.type === 'contract'
+    ? state.contracts.find((contract) => contract.id === actions.editing.id)
+    : null;
+  const rows = state.contracts.map((contract) => h('li', { class: 'fcl-list-row' }, [
+    h('span', { text: `${contract.active ? '活动：' : ''}${contract.club} ${contract.startDate} - ${contract.endDate || '未定'} ${contract.wageAmountMinor} ${contract.wageCurrency}` }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('contract', contract.id) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: contract.active ? '停用' : '设为当前', onclick: () => actions.save((draft) => contract.active ? updateContract(draft, contract.id, { active: false }) : setActiveContract(draft, contract.id)) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm(contract.active ? '该合同是活动合同，确认删除？' : '确认删除该合同？') && actions.save((draft) => deleteContract(draft, contract.id)) }),
+  ]));
+  return h('div', {}, [
+    editor ? renderRecordForm('编辑合同', contractFields(state, editor), '保存合同', async (data) => {
+      await actions.save((draft) => updateContract(draft, editor.id, contractPayload(data)));
+      actions.clearEditing();
+    }) : renderRecordForm('新增合同', contractFields(state), '新增合同', async (data, form) => {
+      if (boolValue(data.active) && state.contracts.some((contract) => contract.active) && !confirm('当前已有活动合同，是否停用旧合同并启用新合同？')) return;
+      await actions.save((draft) => addContract(draft, contractPayload(data)));
+      form.reset();
+    }),
+    h('ul', { class: 'fcl-list' }, rows),
+  ]);
+}
+
+function renderFinance(state, actions) {
+  const balances = getFinanceSummary(state).balances;
+  const rows = queryTransactions(state, { limit: 50 }).map((row) => h('li', { class: 'fcl-list-row' }, [
+    h('span', { text: `${row.date} ${row.type} ${row.category} ${row.amountMinor} ${row.currency} ${row.description}` }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('transaction', row.id) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该流水？') && actions.save((draft) => deleteTransaction(draft, row.id)) }),
+  ]));
+  const editor = actions.editing?.type === 'transaction'
+    ? state.finance.transactions.find((transaction) => transaction.id === actions.editing.id)
+    : null;
+  const transactionFields = (row = {}) => [
+    field('日期', input('date', row.date || today(), { type: 'date' })),
+    field('类型', select('type', row.type || 'income', TRANSACTION_TYPES)),
+    field('类别', select('category', row.category || 'salary', FINANCE_CATEGORIES)),
+    field('金额最小单位', input('amountMinor', row.amountMinor ?? 1, { type: 'number', min: '1' })),
+    field('币种', input('currency', row.currency || state.player.defaultCurrency || 'DEM')),
+    field('说明', input('description', row.description || '')),
+    field('备注', textarea('notes', row.notes || '')),
+  ];
+  return h('div', {}, [
+    h('h3', { text: '余额' }),
+    h('div', { class: 'fcl-summary-grid' }, balances.map((balance) => card(balance.currency, String(balance.amountMinor), [
+      h('button', { type: 'button', class: 'menu_button fcl-small', text: '复制余额', onclick: () => navigator.clipboard?.writeText(`${balance.currency} ${balance.amountMinor}`) }),
+      h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除期初', onclick: () => confirm('确认删除该币种期初余额？') && actions.save((draft) => deleteOpeningBalance(draft, balance.currency)) }),
+    ]))),
+    renderRecordForm('设置期初余额', [
+      field('币种', input('currency', state.player.defaultCurrency || 'DEM')),
+      field('期初余额', input('amountMinor', 0, { type: 'number' })),
+    ], '保存期初余额', async (data) => {
+      await actions.save((draft) => setOpeningBalance(draft, { currency: data.currency, amountMinor: numberValue(data.amountMinor) }));
+    }),
+    editor ? renderRecordForm('编辑流水', transactionFields(editor), '保存流水', async (data) => {
+      await actions.save((draft) => updateTransaction(draft, editor.id, {
+        date: data.date,
+        type: data.type,
+        category: data.category,
+        amountMinor: numberValue(data.amountMinor, 1),
+        currency: data.currency,
+        description: data.description,
+        notes: data.notes,
+        relatedContractId: editor.relatedContractId,
+      }));
+      actions.clearEditing();
+    }) : renderRecordForm('新增流水', transactionFields(), '新增流水', async (data, form) => {
+      await actions.save((draft) => addTransaction(draft, {
+        date: data.date,
+        type: data.type,
+        category: data.category,
+        amountMinor: numberValue(data.amountMinor, 1),
+        currency: data.currency,
+        description: data.description,
+        notes: data.notes,
+        relatedContractId: null,
+      }));
+      form.reset();
+    }),
+    h('h3', { text: '流水列表' }),
+    h('ul', { class: 'fcl-list' }, rows),
+  ]);
+}
+
+function renderAbilities(state, actions) {
+  const abilities = getAbilities(state);
+  const editor = actions.editing?.type === 'abilityHistory'
+    ? state.abilities.history.find((item) => item.id === actions.editing.id)
+    : null;
+  const form = renderRecordForm('修改能力', [
+    field('日期', input('date', today(), { type: 'date' })),
+    field('能力项', select('ability', 'passing', ABILITY_KEYS.map((key) => ({ value: key, label: ABILITY_LABELS[key] })))),
+    field('变化量', input('delta', 1, { type: 'number', min: '-2', max: '2' })),
+    field('原因', input('reason', '')),
+    ...ABILITY_KEYS.map((key) => field(ABILITY_LABELS[key], input(`current_${key}`, abilities[key], { type: 'number', min: '0', max: '99', disabled: true }))),
+  ], '确认能力变化', async (data) => {
+    if (Math.abs(numberValue(data.delta)) === 2 && !confirm('本次能力变化为 ±2，确认这是正式评估结果？')) return;
+    await actions.save((draft) => applyAbilityChange(draft, {
+      date: data.date,
+      ability: data.ability,
+      delta: numberValue(data.delta),
+      reason: data.reason,
+    }));
+  });
+  const editForm = editor ? renderRecordForm('编辑能力历史', [
+    field('日期', input('date', editor.date || today(), { type: 'date' })),
+    field('能力项', select('ability', editor.ability, ABILITY_KEYS.map((key) => ({ value: key, label: ABILITY_LABELS[key] })))),
+    field('Before', input('before', editor.before, { type: 'number', min: '0', max: '99' })),
+    field('After', input('after', editor.after, { type: 'number', min: '0', max: '99' })),
+    field('原因', input('reason', editor.reason || '')),
+    field('备注', textarea('notes', editor.notes || '')),
+  ], '保存能力历史', async (data) => {
+    await actions.save((draft) => updateAbilityHistory(draft, editor.id, {
+      date: data.date,
+      ability: data.ability,
+      before: numberValue(data.before),
+      after: numberValue(data.after),
+      reason: data.reason,
+      notes: data.notes,
+    }));
+    actions.clearEditing();
+  }) : null;
+  const history = state.abilities.history.slice(0, 50).map((row) => h('li', { class: 'fcl-list-row' }, [
+    h('span', { text: `${row.date} ${ABILITY_LABELS[row.ability]} ${row.before} -> ${row.after} ${row.reason || ''}` }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('abilityHistory', row.id) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该能力历史？') && actions.save((draft) => deleteAbilityHistory(draft, row.id)) }),
+  ]));
+  return h('div', {}, [form, editForm, h('h3', { text: '能力历史' }), h('ul', { class: 'fcl-list' }, history)]);
+}
+
+function miscFields(item = {}) {
+  return [
+    field('日期', input('date', item.date || today(), { type: 'date' })),
+    field('键', input('key', item.key || '')),
+    field('值', input('value', item.value || '')),
+    field('标签（逗号分隔）', input('tags', item.tags?.join(', ') || '')),
+    field('备注', textarea('notes', item.notes || '')),
+  ];
+}
+
+function miscPayload(data) {
+  return {
+    date: data.date,
+    key: data.key,
+    value: data.value,
+    tags: String(data.tags || '').split(',').map((tag) => tag.trim()).filter(Boolean),
+    notes: data.notes,
+  };
+}
+
+function renderMisc(state, actions) {
+  const editor = actions.editing?.type === 'misc'
+    ? state.miscellaneous.find((item) => item.id === actions.editing.id)
+    : null;
   const rows = getMiscellaneous(state, { limit: 50 }).map((row) => h('li', { class: 'fcl-list-row' }, [
     h('span', { text: `${row.date} ${row.key}=${row.value} ${row.tags.join(', ')}` }),
-    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该杂项？') && save((draft) => ({ ...draft, miscellaneous: draft.miscellaneous.filter((item) => item.id !== row.id) })) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('misc', row.id) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该杂项？') && actions.save((draft) => deleteMiscellaneous(draft, row.id)) }),
   ]));
-  return h('div', {}, [form, h('ul', { class: 'fcl-list' }, rows)]);
+  return h('div', {}, [
+    editor ? renderRecordForm('编辑杂项', miscFields(editor), '保存杂项', async (data) => {
+      await actions.save((draft) => updateMiscellaneous(draft, editor.id, miscPayload(data)));
+      actions.clearEditing();
+    }) : renderRecordForm('新增杂项', miscFields(), '新增杂项', async (data, form) => {
+      await actions.save((draft) => addMiscellaneous(draft, miscPayload(data)));
+      form.reset();
+    }),
+    h('ul', { class: 'fcl-list' }, rows),
+  ]);
+}
+
+function draftSummary(draft) {
+  if (draft.status === 'invalid') return draft.validationErrors.join('；') || '无效草稿';
+  if (draft.type === 'match') return `${draft.payload.date || ''} ${draft.payload.opponent || ''} ${draft.payload.goalsFor ?? '?'}-${draft.payload.goalsAgainst ?? '?'}`;
+  if (draft.type === 'contract') return `${draft.payload.club || ''} ${draft.payload.contractType || ''}`;
+  if (draft.type === 'transaction') return `${draft.payload.date || ''} ${draft.payload.direction || draft.payload.type || ''} ${draft.payload.amountMinor || ''} ${draft.payload.currency || ''}`;
+  if (draft.type === 'ability_change') return `${ABILITY_LABELS[draft.payload.ability] || draft.payload.ability || ''} ${draft.payload.delta ?? ''}`;
+  return `${draft.payload.date || ''} ${draft.payload.key || ''}=${draft.payload.value || ''}`;
+}
+
+function renderDrafts(state, actions) {
+  const drafts = getDrafts(state, { limit: 100 });
+  const editor = actions.editing?.type === 'draft'
+    ? state.drafts.find((draft) => draft.id === actions.editing.id)
+    : null;
+  const rows = drafts.map((draft) => h('li', { class: 'fcl-list-row fcl-draft-row' }, [
+    h('span', { text: `${draft.status} / ${draft.type} / ${draftSummary(draft)}` }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('draft', draft.id) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '确认', disabled: draft.status !== 'pending', onclick: () => actions.save((stateDraft) => confirmDraft(stateDraft, draft.id)) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '拒绝', disabled: draft.status !== 'pending', onclick: () => actions.save((stateDraft) => rejectDraft(stateDraft, draft.id)) }),
+    h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该草稿？') && actions.save((stateDraft) => deleteDraft(stateDraft, draft.id)) }),
+  ]));
+  return h('div', {}, [
+    editor ? renderRecordForm(`编辑草稿：${editor.type}`, [
+      field('类型', select('type', editor.type, DRAFT_TYPES)),
+      field('状态', select('status', editor.status, DRAFT_STATUS_VALUES)),
+      field('Payload JSON', textarea('payload', JSON.stringify(editor.payload, null, 2), { class: 'fcl-import-box' })),
+      editor.validationErrors.length ? h('p', { class: 'fcl-error', text: editor.validationErrors.join('；') }) : null,
+    ], '保存草稿 Payload', async (data) => {
+      await actions.save((draft) => updateDraft(draft, editor.id, {
+        type: data.type,
+        status: data.status,
+        payload: parseJsonField(data.payload),
+      }));
+      actions.clearEditing();
+    }) : null,
+    h('h3', { text: '草稿列表' }),
+    h('ul', { class: 'fcl-list' }, rows),
+  ]);
 }
 
 function renderData(state, actions) {
   const importBox = textarea('importJson', '', { class: 'fcl-import-box', placeholder: '粘贴完整 JSON 后点击导入' });
   const selfCheckResult = h('pre', { class: 'fcl-pre' });
   const summaryText = h('pre', { class: 'fcl-pre' }, buildPromptSummary(state, actions.settings));
+  const presetPreview = h('pre', { class: 'fcl-pre' }, PROMPT_PRESETS.map((preset) => `# ${preset}\n${buildPromptSummary(state, { ...actions.settings, preset })}`).join('\n\n'));
   return h('div', { class: 'fcl-data-tools' }, [
-    h('div', { class: 'fcl-actionbar' }, [
+    actionbar([
       h('button', { type: 'button', class: 'menu_button', text: '导出JSON', onclick: actions.exportJson }),
       h('button', { type: 'button', class: 'menu_button', text: '示例数据', onclick: actions.downloadExample }),
+      h('button', { type: 'button', class: 'menu_button', text: '复制模型建议规则', onclick: () => navigator.clipboard?.writeText(buildModelSuggestionInstructions()) }),
       h('button', { type: 'button', class: 'menu_button', text: '清空本聊天', onclick: actions.clearData }),
+      h('button', { type: 'button', class: 'menu_button', text: '恢复导入前备份', disabled: !actions.lastImportBackup, onclick: async () => actions.lastImportBackup && actions.importState(parseImportJson(actions.lastImportBackup)) }),
       h('button', { type: 'button', class: 'menu_button', text: 'API自检', onclick: async () => { selfCheckResult.textContent = JSON.stringify(await actions.selfCheck(), null, 2); } }),
     ]),
+    card('财务边界', '插件财务余额是结构化账本计算结果。如果 MVU 同时维护个人存款，两者可能冲突；推荐以插件余额为权威来源。'),
     h('h3', { text: '导入JSON' }),
     importBox,
     h('button', {
@@ -446,14 +674,18 @@ function renderData(state, actions) {
       class: 'menu_button',
       text: '解析并导入',
       onclick: async () => {
+        const backup = exportStateJson(state);
         const nextState = parseImportJson(importBox.value);
         const summary = buildImportSummary(nextState);
-        if (!confirm(`确认导入？\n${JSON.stringify(summary, null, 2)}`)) return;
+        if (!confirm(`确认导入？导入前已在本次会话保留内存备份。\n${JSON.stringify(summary, null, 2)}`)) return;
+        actions.setImportBackup(backup);
         await actions.importState(nextState);
       },
     }),
     h('h3', { text: '当前摘要预览' }),
     summaryText,
+    h('h3', { text: '三档预设预览' }),
+    presetPreview,
     h('h3', { text: 'API自检结果' }),
     selfCheckResult,
   ]);
@@ -467,6 +699,9 @@ export class LedgerUi {
     this.actions = actions;
     this.activeTab = 'overview';
     this.root = null;
+    this.editing = null;
+    this.matchLimit = 50;
+    this.lastImportBackup = null;
   }
 
   mount(root) {
@@ -478,6 +713,16 @@ export class LedgerUi {
     await this.render();
   }
 
+  setEditing(type, id) {
+    this.editing = { type, id };
+    this.render();
+  }
+
+  clearEditing() {
+    this.editing = null;
+    this.render();
+  }
+
   async render() {
     if (!this.root) return;
     this.root.textContent = '';
@@ -486,16 +731,16 @@ export class LedgerUi {
       h('strong', { text: '足球生涯账本' }),
       h('span', { 'data-fcl-status': '', class: 'fcl-status', text: '' }),
     ]));
-    const tabs = h('div', { class: 'fcl-tabs' }, tabDefs.map(([id, label]) => h('button', {
+    container.append(h('div', { class: 'fcl-tabs' }, tabDefs.map(([id, label]) => h('button', {
       type: 'button',
       class: `menu_button ${this.activeTab === id ? 'fcl-active' : ''}`,
       text: label,
       onclick: () => {
         this.activeTab = id;
+        this.editing = null;
         this.render();
       },
-    })));
-    container.append(tabs);
+    }))));
     const body = h('div', { class: 'fcl-body' });
     container.append(body);
     this.root.append(container);
@@ -516,8 +761,18 @@ export class LedgerUi {
       });
     };
 
-    const dataActions = {
+    const sharedActions = {
       settings: this.settings,
+      editing: this.editing,
+      matchLimit: this.matchLimit,
+      lastImportBackup: this.lastImportBackup,
+      setImportBackup: (backup) => {
+        this.lastImportBackup = backup;
+      },
+      save,
+      setEditing: (type, id) => this.setEditing(type, id),
+      clearEditing: () => this.clearEditing(),
+      undo: () => save((draft) => undoLastOperation(draft)),
       exportJson: async () => {
         const current = await readLedgerState(this.context);
         this.context.download(exportStateJson(current), `football-career-ledger-${Date.now()}.json`, 'application/json');
@@ -539,15 +794,17 @@ export class LedgerUi {
       selfCheck: this.actions.selfCheck,
     };
 
-    const content = {
-      overview: () => renderOverview(state, save),
-      matches: () => renderMatches(state, save),
-      contracts: () => renderContracts(state, save),
-      finance: () => renderFinance(state, save),
-      abilities: () => renderAbilities(state, save),
-      misc: () => renderMisc(state, save),
-      data: () => renderData(state, dataActions),
-    }[this.activeTab]();
-    body.append(content);
+    const renderers = {
+      overview: () => renderOverview(state, sharedActions),
+      drafts: () => renderDrafts(state, sharedActions),
+      matches: () => renderMatches(state, sharedActions),
+      seasons: () => renderSeasons(state, sharedActions),
+      contracts: () => renderContracts(state, sharedActions),
+      finance: () => renderFinance(state, sharedActions),
+      abilities: () => renderAbilities(state, sharedActions),
+      misc: () => renderMisc(state, sharedActions),
+      data: () => renderData(state, sharedActions),
+    };
+    body.append(renderers[this.activeTab]());
   }
 }
