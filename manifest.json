@@ -1,0 +1,12 @@
+{
+  "display_name": "足球生涯账本",
+  "loading_order": 120,
+  "requires": [],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "YP",
+  "version": "0.1.0",
+  "homePage": "https://github.com/<your-github-user>/Luker-Football-Career-Ledger",
+  "auto_update": true
+}

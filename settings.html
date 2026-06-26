@@ -1,0 +1,43 @@
+<div class="fcl-settings" data-extension-name="football-career-ledger">
+  <div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+      <b>足球生涯账本</b>
+      <div class="inline-drawer-icon fa-solid fa-circle-chevron-down"></div>
+    </div>
+    <div class="inline-drawer-content">
+      <label class="checkbox_label">
+        <input type="checkbox" id="fcl_enabled">
+        启用插件
+      </label>
+      <label class="checkbox_label">
+        <input type="checkbox" id="fcl_prompt_injection">
+        启用提示词摘要注入
+      </label>
+      <label class="fcl-setting-row">
+        <span>摘要最大字符数</span>
+        <input type="number" id="fcl_prompt_max_chars" min="100" max="10000" step="100">
+      </label>
+      <label class="fcl-setting-row">
+        <span>最近比赛数量</span>
+        <input type="number" id="fcl_recent_match_limit" min="0" max="10" step="1">
+      </label>
+      <label class="checkbox_label">
+        <input type="checkbox" id="fcl_include_contracts">
+        摘要包含合同
+      </label>
+      <label class="checkbox_label">
+        <input type="checkbox" id="fcl_include_finance">
+        摘要包含财务
+      </label>
+      <label class="checkbox_label">
+        <input type="checkbox" id="fcl_include_abilities">
+        摘要包含能力
+      </label>
+      <label class="checkbox_label">
+        <input type="checkbox" id="fcl_include_miscellaneous">
+        摘要包含杂项
+      </label>
+      <button type="button" class="menu_button" id="fcl_open_panel">打开账本面板</button>
+    </div>
+  </div>
+</div>
