@@ -66,6 +66,9 @@ test('prompt summary is structured and includes closed season details', () => {
   const summary = buildPromptSummary(state, { preset: 'standard', maxChars: 2000 });
   assert.match(summary, /\[球员\]/);
   assert.match(summary, /\[最近结束赛季\]/);
+  assert.match(summary, /\[历史赛季\]/);
+  assert.match(summary, /\| 赛季 \| 球队 \| 出场 \| 首发 \| 进球 \| 助攻 \| 成绩 \| 荣誉 \|/);
+  assert.match(summary, /\| 1998\/99 \|/);
   assert.match(summary, /青年联赛亚军/);
   assert.match(summary, /助攻王/);
   assert.match(summary, /\[能力\]/);

@@ -49,6 +49,13 @@ function formatList(values) {
   return values?.length ? values.join('、') : '无';
 }
 
+function formatTableCell(value) {
+  return String(value ?? '')
+    .replace(/\|/g, '/')
+    .replace(/\r?\n/g, ' ')
+    .trim() || '无';
+}
+
 function latestClosedSeason(state) {
   return state.seasons
     .filter((season) => season.status === 'completed' && season.closedSummary)
@@ -62,6 +69,32 @@ function pushSection(lines, title, rows) {
   if (!filtered.length) return;
   lines.push(`[${title}]`);
   filtered.forEach((row) => lines.push(`- ${row}`));
+}
+
+function historicalSeasonTable(state, limit = 8) {
+  const seasons = state.seasons
+    .filter((season) => season.status === 'completed')
+    .slice()
+    .sort((a, b) => String(b.startedAt || b.id || '').localeCompare(String(a.startedAt || a.id || '')))
+    .slice(0, limit);
+  if (!seasons.length) return [];
+
+  const rows = [
+    '[历史赛季]',
+    '| 赛季 | 球队 | 出场 | 首发 | 进球 | 助攻 | 成绩 | 荣誉 |',
+    '| --- | --- | ---: | ---: | ---: | ---: | --- | --- |',
+  ];
+  for (const season of seasons) {
+    const summary = summarizeSeason(state, season.id);
+    const closure = season.closedSummary || {};
+    const totals = closure.calculatedTotals || summary || {};
+    const honors = [
+      ...(Array.isArray(closure.teamHonors) ? closure.teamHonors : []),
+      ...(Array.isArray(closure.individualHonors) ? closure.individualHonors : []),
+    ];
+    rows.push(`| ${formatTableCell(season.label || season.id)} | ${formatTableCell(season.club)} | ${totals.appearances ?? 0} | ${totals.starts ?? 0} | ${totals.goals ?? 0} | ${totals.assists ?? 0} | ${formatTableCell(closure.finalStanding || closure.teamOutcome || season.status)} | ${formatTableCell(formatList(honors))} |`);
+  }
+  return rows;
 }
 
 export function buildPromptSummary(state, options = {}) {
@@ -115,6 +148,8 @@ export function buildPromptSummary(state, options = {}) {
       `个人荣誉：${formatList(closedSummary.individualHonors)}`,
     ]);
   }
+
+  lines.push(...historicalSeasonTable(state, 8));
 
   if (recentMatches.length) {
     pushSection(lines, '最近比赛', recentMatches.map(formatMatch));
