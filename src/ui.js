@@ -846,8 +846,7 @@ function renderData(state, actions) {
   const presetPreview = h('pre', { class: 'fcl-pre' }, PROMPT_PRESETS.map((preset) => `# ${preset}\n${buildPromptSummary(state, { ...actions.settings, preset })}`).join('\n\n'));
   return h('div', { class: 'fcl-data-tools' }, [
     actionbar([
-      h('button', { type: 'button', class: 'menu_button', text: '导出精简JSON', onclick: actions.exportJson }),
-      h('button', { type: 'button', class: 'menu_button', text: '导出完整备份', onclick: actions.exportFullJson }),
+      h('button', { type: 'button', class: 'menu_button', text: '导出JSON', onclick: actions.exportJson }),
       h('button', { type: 'button', class: 'menu_button', text: '示例数据', onclick: actions.downloadExample }),
       h('button', { type: 'button', class: 'menu_button', text: '复制模型建议规则', onclick: () => navigator.clipboard?.writeText(buildModelSuggestionInstructions()) }),
       h('button', { type: 'button', class: 'menu_button', text: '清空本聊天', onclick: actions.clearData }),
@@ -862,7 +861,7 @@ function renderData(state, actions) {
       class: 'menu_button',
       text: '解析并导入',
       onclick: async () => {
-        const backup = exportStateJson(state, { includeOperationSnapshots: true });
+        const backup = exportStateJson(state);
         const nextState = parseImportJson(importBox.value);
         const summary = buildImportSummary(nextState);
         if (!confirm(`确认导入？导入前已在本次会话保留内存备份。\n${JSON.stringify(summary, null, 2)}`)) return;
@@ -964,10 +963,6 @@ export class LedgerUi {
       exportJson: async () => {
         const current = await readLedgerState(this.context);
         this.context.download(exportStateJson(current), `football-career-ledger-${Date.now()}.json`, 'application/json');
-      },
-      exportFullJson: async () => {
-        const current = await readLedgerState(this.context);
-        this.context.download(exportStateJson(current, { includeOperationSnapshots: true }), `football-career-ledger-full-${Date.now()}.json`, 'application/json');
       },
       downloadExample: () => this.context.download(exportStateJson(createExampleState()), 'football-career-ledger-example.json', 'application/json'),
       clearData: async () => {

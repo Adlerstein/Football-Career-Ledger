@@ -29,20 +29,39 @@ function formatMoney(amountMinor, currency) {
 }
 
 function formatMatch(match) {
-  const score = `${match.goalsFor}比${match.goalsAgainst}`;
+  const score = `${match.goalsFor}-${match.goalsAgainst}`;
   const role = match.started ? '首发' : '替补';
-  const parts = [`对${match.opponent || '未知对手'}${score}`, `${role}${match.minutes}分钟`];
+  const parts = [`${match.date || '未填写日期'} ${match.competition || '未填写赛事'}`, `对${match.opponent || '未知对手'} ${score}`, `${role}${match.minutes}分钟`];
   if (match.goals) parts.push(`${match.goals}球`);
   if (match.assists) parts.push(`${match.assists}次助攻`);
   return parts.join('，');
 }
 
-function abilityStrengthSummary(abilities) {
+function formatAbilitySummary(abilities) {
   const rows = ABILITY_KEYS.map((key) => ({ key, value: abilities[key] ?? 0 }))
     .sort((a, b) => b.value - a.value);
   const top = rows.slice(0, 2).map((row) => `${ABILITY_LABELS[row.key]}${row.value}`).join('、');
   const weak = rows.slice(-2).map((row) => `${ABILITY_LABELS[row.key]}${row.value}`).join('、');
-  return `能力倾向：优势 ${top || '无'}；短板 ${weak || '无'}。`;
+  return `能力：优势 ${top || '无'}；短板 ${weak || '无'}`;
+}
+
+function formatList(values) {
+  return values?.length ? values.join('、') : '无';
+}
+
+function latestClosedSeason(state) {
+  return state.seasons
+    .filter((season) => season.status === 'completed' && season.closedSummary)
+    .slice()
+    .sort((a, b) => String(b.endedAt || b.startedAt || '').localeCompare(String(a.endedAt || a.startedAt || '')))
+    [0] || null;
+}
+
+function pushSection(lines, title, rows) {
+  const filtered = rows.filter(Boolean);
+  if (!filtered.length) return;
+  lines.push(`[${title}]`);
+  filtered.forEach((row) => lines.push(`- ${row}`));
 }
 
 export function buildPromptSummary(state, options = {}) {
@@ -60,51 +79,83 @@ export function buildPromptSummary(state, options = {}) {
   const currentSeason = getCurrentSeason(state);
   const summary = summarizeSeason(state, currentSeason?.id);
   const recentMatches = queryMatches(state, { seasonId: currentSeason?.id, limit: recentMatchLimit });
+  const closedSeason = latestClosedSeason(state);
+  const closedSummary = closedSeason?.closedSummary || null;
+  const closedTotals = closedSummary?.calculatedTotals || null;
   const lines = [];
 
   lines.push('<football_career_ledger readonly="true">');
   lines.push('以下为插件提供的结构化账本摘要，只供叙事参考；不要原文输出，不要写入MVU，不要自行修改这些数值。');
-  lines.push(`球员：${state.player.name || '未命名'}；俱乐部：${state.player.currentClub || currentSeason?.club || '未填写'}；队伍：${state.player.currentTeam || state.player.currentClub || currentSeason?.club || '未填写'}；位置：${state.player.primaryPosition || '未填写'}；职业阶段：${CAREER_STAGE_LABELS[state.player.careerStage] || state.player.careerStage}；队内角色：${SQUAD_ROLE_LABELS[state.player.squadRole] || state.player.squadRole}。`);
+  pushSection(lines, '球员', [
+    `姓名：${state.player.name || '未命名'}`,
+    `俱乐部：${state.player.currentClub || currentSeason?.club || '未填写'}`,
+    `队伍：${state.player.currentTeam || state.player.currentClub || currentSeason?.club || '未填写'}`,
+    `位置：${state.player.primaryPosition || '未填写'}${state.player.secondaryPositions.length ? `；副位置：${state.player.secondaryPositions.join('、')}` : ''}`,
+    `职业阶段：${CAREER_STAGE_LABELS[state.player.careerStage] || state.player.careerStage}`,
+    `队内角色：${SQUAD_ROLE_LABELS[state.player.squadRole] || state.player.squadRole}`,
+  ]);
 
   if (currentSeason && summary) {
-    lines.push(`当前赛季：${currentSeason.label || currentSeason.id}，${summary.appearances}次出场，${summary.starts}次首发，${summary.minutes}分钟，${summary.goals}球${summary.assists}助攻。`);
+    pushSection(lines, '当前赛季', [
+      `${currentSeason.label || currentSeason.id}；状态：${currentSeason.status}；球队：${currentSeason.club || '未填写'}`,
+      `时间：${currentSeason.startedAt || '未填写'} 至 ${currentSeason.endedAt || '进行中'}`,
+      `累计：${summary.appearances}次出场，${summary.starts}次首发，${summary.minutes}分钟，${summary.goals}球，${summary.assists}次助攻`,
+    ]);
+  }
+
+  if (closedSeason && closedSummary) {
+    pushSection(lines, '最近结束赛季', [
+      `${closedSeason.label || closedSeason.id}；球队：${closedSeason.club || '未填写'}；结束日期：${closedSeason.endedAt || '未填写'}`,
+      closedTotals ? `最终统计：${closedTotals.appearances ?? 0}次出场，${closedTotals.starts ?? 0}次首发，${closedTotals.minutes ?? 0}分钟，${closedTotals.goals ?? 0}球，${closedTotals.assists ?? 0}次助攻` : '',
+      `赛季结果：${closedSummary.teamOutcome || '未填写'}`,
+      `球队最终成绩：${closedSummary.finalStanding || '未填写'}`,
+      `赛季末队内角色：${SQUAD_ROLE_LABELS[closedSummary.roleAtEnd] || closedSummary.roleAtEnd || '未填写'}`,
+      `赛季总结：${closedSummary.narrativeSummary || '未填写'}`,
+      `团队荣誉：${formatList(closedSummary.teamHonors)}`,
+      `个人荣誉：${formatList(closedSummary.individualHonors)}`,
+    ]);
   }
 
   if (recentMatches.length) {
-    lines.push(`最近比赛：${recentMatches.map(formatMatch).join('；')}。`);
+    pushSection(lines, '最近比赛', recentMatches.map(formatMatch));
   }
 
   if (includeContracts) {
     const contract = getActiveContract(state);
     if (contract) {
-      lines.push(`合同：${contract.club} ${contract.contractType}合同，${contract.endDate || '未填写'}到期，${contract.wagePeriod}薪${formatMoney(contract.wageAmountMinor, contract.wageCurrency)}。`);
+      pushSection(lines, '合同', [
+        `${contract.club}；${contract.contractType}合同；${contract.startDate || '未填写'} 至 ${contract.endDate || '未填写'}`,
+        `${contract.wagePeriod}薪 ${formatMoney(contract.wageAmountMinor, contract.wageCurrency)}`,
+      ]);
     }
   }
 
   if (includeFinance) {
     const finance = getFinanceSummary(state);
     if (finance.balances.length) {
-      lines.push(`财务：${finance.balances.map((item) => `${item.currency}余额${item.amountMinor}`).join('；')}。`);
+      pushSection(lines, '财务', finance.balances.map((item) => `${item.currency} 余额 ${item.amountMinor}`));
     }
   }
 
   if (includeAbilities) {
     const abilities = getAbilities(state);
-    lines.push(includeFullAbilities
-      ? `能力：${ABILITY_KEYS.map((key) => `${ABILITY_LABELS[key]}${abilities[key]}`).join('，')}。`
-      : abilityStrengthSummary(abilities));
+    pushSection(lines, '能力', [
+      includeFullAbilities
+        ? ABILITY_KEYS.map((key) => `${ABILITY_LABELS[key]}${abilities[key]}`).join('，')
+        : formatAbilitySummary(abilities),
+    ]);
   }
 
   if (includeMiscellaneous) {
     const misc = getMiscellaneous(state, { limit: 3 });
     if (misc.length) {
-      lines.push(`杂项：${misc.map((item) => `${item.key}=${item.value}`).join('；')}。`);
+      pushSection(lines, '杂项', misc.map((item) => `${item.date || '未填写日期'} ${item.key}=${item.value}`));
     }
   }
 
   const pendingDrafts = getPendingDraftCount(state);
   if (pendingDrafts) {
-    lines.push(`当前有${pendingDrafts}条待确认账本草稿，尚未写入正式数据。`);
+    pushSection(lines, '草稿', [`当前有 ${pendingDrafts} 条待确认账本草稿，尚未写入正式数据`]);
   }
 
   lines.push('</football_career_ledger>');

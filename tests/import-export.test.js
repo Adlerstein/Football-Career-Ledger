@@ -11,7 +11,7 @@ test('exports and imports valid json', () => {
   assert.equal(buildImportSummary(parsed).matches, 1);
 });
 
-test('default export drops operation history and full export keeps it', () => {
+test('export drops operation history to keep json lightweight', () => {
   const state = exampleState();
   state.operationHistory.unshift({
     id: 'operation-export-test',
@@ -23,11 +23,8 @@ test('default export drops operation history and full export keeps it', () => {
     createdAt: '1998-09-01T00:00:00.000Z',
     undoneAt: null,
   });
-  const slim = JSON.parse(exportStateJson(state));
-  const full = JSON.parse(exportStateJson(state, { includeOperationSnapshots: true }));
-  assert.deepEqual(slim.operationHistory, []);
-  assert.deepEqual(full.operationHistory[0].before, { name: 'before' });
-  assert.deepEqual(full.operationHistory[0].after, { name: 'after' });
+  const exported = JSON.parse(exportStateJson(state));
+  assert.deepEqual(exported.operationHistory, []);
 });
 
 test('rejects invalid import json without producing state', () => {
@@ -41,4 +38,36 @@ test('rejects invalid import json without producing state', () => {
 test('prompt summary respects max length', () => {
   const summary = buildPromptSummary(exampleState(), { maxChars: 80 });
   assert.ok(summary.length <= 80);
+});
+
+test('prompt summary is structured and includes closed season details', () => {
+  const state = exampleState();
+  state.seasons[0] = {
+    ...state.seasons[0],
+    status: 'completed',
+    endedAt: '1999-06-30',
+    closedSummary: {
+      calculatedTotals: {
+        appearances: 2,
+        starts: 1,
+        minutes: 120,
+        goals: 1,
+        assists: 2,
+      },
+      teamOutcome: '青年联赛亚军',
+      finalStanding: '第二名',
+      roleAtEnd: 'starter',
+      narrativeSummary: '站稳青年队主力轮换',
+      teamHonors: ['青年联赛亚军'],
+      individualHonors: ['助攻王'],
+      closedAt: '1999-06-30T00:00:00.000Z',
+    },
+  };
+  const summary = buildPromptSummary(state, { preset: 'standard', maxChars: 2000 });
+  assert.match(summary, /\[球员\]/);
+  assert.match(summary, /\[最近结束赛季\]/);
+  assert.match(summary, /青年联赛亚军/);
+  assert.match(summary, /助攻王/);
+  assert.match(summary, /\[能力\]/);
+  assert.doesNotMatch(summary, /能力倾向/);
 });

@@ -35,10 +35,9 @@ export function buildImportSummary(state) {
   };
 }
 
-export function exportStateJson(state, options = {}) {
+export function exportStateJson(state) {
   validateState(state);
-  const output = options.includeOperationSnapshots ? state : buildSlimExportState(state);
-  return JSON.stringify(output, null, 2);
+  return JSON.stringify(buildSlimExportState(state), null, 2);
 }
 
 export function createExampleState() {

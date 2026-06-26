@@ -69,6 +69,6 @@ test('prompt presets do not inject pending draft facts', () => {
     source: { messageId: 'm1', swipeId: 0, suggestionIndex: 0, contentHash: 'hash' },
   });
   const summary = buildPromptSummary(state, { preset: 'full', maxChars: 2000 });
-  assert.match(summary, /当前有1条待确认账本草稿/);
+  assert.match(summary, /当前有 1 条待确认账本草稿/);
   assert.doesNotMatch(summary, /不应进入事实摘要/);
 });
