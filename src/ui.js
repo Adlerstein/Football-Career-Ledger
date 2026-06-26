@@ -4,10 +4,14 @@ import {
   CAREER_STAGE_LABELS,
   CAREER_STAGE_VALUES,
   CONTRACT_TYPES,
+  CURRENCY_LABELS,
+  CURRENCY_VALUES,
   DRAFT_STATUS_VALUES,
   DRAFT_TYPES,
   FINANCE_CATEGORIES,
   HOME_AWAY_VALUES,
+  DEFAULT_SEASON_START_DATE,
+  LEDGER_START_DATE,
   PROMPT_PRESETS,
   SQUAD_ROLE_LABELS,
   SQUAD_ROLE_VALUES,
@@ -35,6 +39,7 @@ import {
   deleteTransaction,
   rejectDraft,
   setActiveContract,
+  setInitialAbilities,
   setOpeningBalance,
   undoLastOperation,
   updateContract,
@@ -48,6 +53,7 @@ import {
 } from './ledger-actions.js';
 import { buildModelSuggestionInstructions } from './suggestions.js';
 import { buildPromptSummary } from './prompt.js';
+import { getSeasonTemplateRows, parseSeasonInput } from './season-utils.js';
 import { readLedgerState, replaceLedgerState, clearLedgerState, writeLedgerState } from './storage.js';
 import {
   getAbilities,
@@ -123,6 +129,27 @@ function enumRows(values, labels = {}) {
   return values.map((value) => ({ value, label: labels[value] || value }));
 }
 
+function currencyRows(state) {
+  const values = new Set([
+    state.player.defaultCurrency || 'DEM',
+    ...CURRENCY_VALUES,
+    ...state.finance.openingBalances.map((row) => row.currency),
+    ...state.finance.transactions.map((row) => row.currency),
+    ...state.contracts.map((contract) => contract.wageCurrency),
+  ].filter(Boolean));
+  return Array.from(values).map((value) => ({ value, label: CURRENCY_LABELS[value] || value }));
+}
+
+function seasonRows(state, emptyLabel = '请先创建赛季') {
+  return optionRows(
+    state.seasons.map((season) => ({
+      id: season.id,
+      label: `${season.label || season.id}（${season.id}）`,
+    })),
+    emptyLabel,
+  );
+}
+
 function formDataObject(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
@@ -136,8 +163,13 @@ function boolValue(value) {
   return value === 'on' || value === 'true' || value === true;
 }
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
+function currentLedgerDate(state) {
+  return getCurrentSeason(state)?.startedAt || state.seasons[0]?.startedAt || LEDGER_START_DATE;
+}
+
+function dateInput(name, value = LEDGER_START_DATE, attrs = {}) {
+  const resolved = value === undefined || value === null ? LEDGER_START_DATE : value;
+  return input(name, resolved, { type: 'date', min: LEDGER_START_DATE, ...attrs });
 }
 
 function setStatus(root, message, kind = 'info') {
@@ -221,6 +253,7 @@ function renderSummaryCards(state, actions) {
 
 function renderOverview(state, actions) {
   const currentSeason = getCurrentSeason(state);
+  const templateRows = getSeasonTemplateRows();
   return h('div', {}, [
     renderSummaryCards(state, actions),
     renderRecordForm('基础资料', [
@@ -231,8 +264,8 @@ function renderOverview(state, actions) {
       field('副位置（逗号分隔）', input('secondaryPositions', state.player.secondaryPositions.join(', '))),
       field('职业阶段', select('careerStage', state.player.careerStage, enumRows(CAREER_STAGE_VALUES, CAREER_STAGE_LABELS))),
       field('队内角色', select('squadRole', state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
-      field('默认币种', input('defaultCurrency', state.player.defaultCurrency)),
-      field('当前赛季ID', input('currentSeasonId', state.player.currentSeasonId || currentSeason?.id || '')),
+      field('默认币种', select('defaultCurrency', state.player.defaultCurrency || 'DEM', currencyRows(state))),
+      field('当前赛季', select('currentSeasonId', state.player.currentSeasonId || currentSeason?.id || '', seasonRows(state, '未设置'))),
     ], '保存基础资料', async (data) => {
       await actions.save((draft) => updatePlayerStatus(draft, {
         name: String(data.name || ''),
@@ -246,14 +279,29 @@ function renderOverview(state, actions) {
         currentSeasonId: String(data.currentSeasonId || ''),
       }));
     }),
+    renderRecordForm('从模板创建赛季', [
+      field('赛季模板', select('seasonTemplate', '1998-99', templateRows)),
+      field('俱乐部/队伍', input('club', state.player.currentTeam || state.player.currentClub)),
+      field('状态', select('status', 'active', ['active', 'planned'])),
+    ], '创建赛季', async (data, form) => {
+      const parsed = parseSeasonInput(data.seasonTemplate);
+      await actions.save((draft) => addSeason(draft, {
+        id: parsed.id,
+        label: parsed.label,
+        club: data.club,
+        startedAt: parsed.startedAt,
+        status: data.status,
+      }));
+      form.reset();
+    }),
   ]);
 }
 
 function matchFields(state, match = {}) {
   const currentSeason = getCurrentSeason(state);
   return [
-    field('赛季', select('seasonId', match.seasonId || currentSeason?.id || '', optionRows(state.seasons, '请选择赛季'))),
-    field('日期', input('date', match.date || today(), { type: 'date' })),
+    field('赛季', select('seasonId', match.seasonId || currentSeason?.id || '', seasonRows(state, '请先创建赛季'))),
+    field('日期', dateInput('date', match.date || currentLedgerDate(state))),
     field('赛事', input('competition', match.competition || '')),
     field('球队', input('club', match.club || state.player.currentTeam || state.player.currentClub || currentSeason?.club || '')),
     field('对手', input('opponent', match.opponent || '')),
@@ -305,6 +353,7 @@ function renderMatches(state, actions) {
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除这场比赛？') && actions.save((draft) => deleteMatch(draft, match.id)) }),
   ]));
   return h('div', {}, [
+    state.seasons.length ? null : h('p', { class: 'fcl-muted', text: '新增比赛前需要先在“基础资料”或“赛季”页创建一个赛季。推荐模板：1998/99 会保存为赛季ID 1998-99。' }),
     editor ? renderRecordForm('编辑比赛', matchFields(state, editor), '保存比赛', async (data) => {
       await actions.save((draft) => updateMatch(draft, editor.id, matchPayload(data)));
       actions.clearEditing();
@@ -318,23 +367,34 @@ function renderMatches(state, actions) {
 }
 
 function seasonFields(state, season = {}) {
+  const template = select('seasonTemplate', '', [{ value: '', label: '选择模板填充' }, ...getSeasonTemplateRows()]);
+  template.addEventListener('change', (event) => {
+    const parsed = parseSeasonInput(event.target.value);
+    const form = event.target.closest('form');
+    if (!form || !parsed.id) return;
+    form.querySelector('[name="id"]').value = parsed.id;
+    form.querySelector('[name="label"]').value = parsed.label;
+    form.querySelector('[name="startedAt"]').value = parsed.startedAt;
+  });
   return [
+    field('赛季模板', template),
     field('赛季ID', input('id', season.id || state.player.currentSeasonId || '1998-99')),
     field('标签', input('label', season.label || '1998/99')),
     field('俱乐部/队伍', input('club', season.club || state.player.currentTeam || state.player.currentClub)),
-    field('开始日期', input('startedAt', season.startedAt || '1998-07-01', { type: 'date' })),
-    field('结束日期', input('endedAt', season.endedAt || '', { type: 'date' })),
+    field('开始日期', dateInput('startedAt', season.startedAt || DEFAULT_SEASON_START_DATE)),
+    field('结束日期', dateInput('endedAt', season.endedAt || '', { value: season.endedAt || '' })),
     field('状态', select('status', season.status || 'active', ['active', 'completed', 'planned'])),
     field('备注', textarea('notes', season.notes || '')),
   ];
 }
 
 function seasonPayload(data) {
+  const parsed = parseSeasonInput(data.seasonTemplate || data.id);
   return {
-    id: String(data.id || ''),
-    label: String(data.label || data.id || ''),
+    id: String(parsed.id || data.id || ''),
+    label: String(data.label || parsed.label || data.id || ''),
     club: String(data.club || ''),
-    startedAt: String(data.startedAt || ''),
+    startedAt: String(data.startedAt || parsed.startedAt || DEFAULT_SEASON_START_DATE),
     endedAt: data.endedAt ? String(data.endedAt) : null,
     status: String(data.status || 'planned'),
     notes: String(data.notes || ''),
@@ -366,7 +426,7 @@ function renderSeasons(state, actions) {
       form.reset();
     }),
     closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
-      field('结束日期', input('endedAt', closeTarget.endedAt || today(), { type: 'date' })),
+      field('结束日期', dateInput('endedAt', closeTarget.endedAt || closeTarget.startedAt || currentLedgerDate(state))),
       field('赛季结果', input('teamOutcome', closeTarget.closedSummary?.teamOutcome || '')),
       field('球队最终成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '')),
       field('赛季末队内角色', input('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || '')),
@@ -390,7 +450,7 @@ function renderSeasons(state, actions) {
       field('赛季ID', input('id', '1999-00')),
       field('标签', input('label', '1999/00')),
       field('队伍', input('club', state.player.currentTeam || state.player.currentClub)),
-      field('开始日期', input('startedAt', today(), { type: 'date' })),
+      field('开始日期', dateInput('startedAt', currentLedgerDate(state))),
       field('当前俱乐部', input('currentClub', state.player.currentClub)),
       field('当前队伍', input('currentTeam', state.player.currentTeam)),
     ], '创建下一赛季', async (data, form) => {
@@ -413,10 +473,10 @@ function contractFields(state, contract = {}) {
   return [
     field('俱乐部', input('club', contract.club || state.player.currentClub)),
     field('类型', select('contractType', contract.contractType || 'youth', CONTRACT_TYPES)),
-    field('开始日期', input('startDate', contract.startDate || today(), { type: 'date' })),
-    field('结束日期', input('endDate', contract.endDate || '', { type: 'date' })),
+    field('开始日期', dateInput('startDate', contract.startDate || currentLedgerDate(state))),
+    field('结束日期', dateInput('endDate', contract.endDate || '', { value: contract.endDate || '' })),
     field('薪资最小单位', input('wageAmountMinor', contract.wageAmountMinor ?? 1, { type: 'number', min: '1' })),
-    field('币种', input('wageCurrency', contract.wageCurrency || state.player.defaultCurrency || 'DEM')),
+    field('币种', select('wageCurrency', contract.wageCurrency || state.player.defaultCurrency || 'DEM', currencyRows(state))),
     field('周期', select('wagePeriod', contract.wagePeriod || 'weekly', WAGE_PERIODS)),
     field('活动合同', h('input', { name: 'active', type: 'checkbox', checked: contract.active })),
     field('奖金', textarea('bonuses', contract.bonuses || '')),
@@ -475,11 +535,11 @@ function renderFinance(state, actions) {
     ? state.finance.transactions.find((transaction) => transaction.id === actions.editing.id)
     : null;
   const transactionFields = (row = {}) => [
-    field('日期', input('date', row.date || today(), { type: 'date' })),
+    field('日期', dateInput('date', row.date || currentLedgerDate(state))),
     field('类型', select('type', row.type || 'income', TRANSACTION_TYPES)),
     field('类别', select('category', row.category || 'salary', FINANCE_CATEGORIES)),
     field('金额最小单位', input('amountMinor', row.amountMinor ?? 1, { type: 'number', min: '1' })),
-    field('币种', input('currency', row.currency || state.player.defaultCurrency || 'DEM')),
+    field('币种', select('currency', row.currency || state.player.defaultCurrency || 'DEM', currencyRows(state))),
     field('说明', input('description', row.description || '')),
     field('备注', textarea('notes', row.notes || '')),
   ];
@@ -490,7 +550,7 @@ function renderFinance(state, actions) {
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除期初', onclick: () => confirm('确认删除该币种期初余额？') && actions.save((draft) => deleteOpeningBalance(draft, balance.currency)) }),
     ]))),
     renderRecordForm('设置期初余额', [
-      field('币种', input('currency', state.player.defaultCurrency || 'DEM')),
+      field('币种', select('currency', state.player.defaultCurrency || 'DEM', currencyRows(state))),
       field('期初余额', input('amountMinor', 0, { type: 'number' })),
     ], '保存期初余额', async (data) => {
       await actions.save((draft) => setOpeningBalance(draft, { currency: data.currency, amountMinor: numberValue(data.amountMinor) }));
@@ -530,8 +590,21 @@ function renderAbilities(state, actions) {
   const editor = actions.editing?.type === 'abilityHistory'
     ? state.abilities.history.find((item) => item.id === actions.editing.id)
     : null;
+  const canSetInitialAbilities = state.abilities.history.length === 0;
+  const initialForm = renderRecordForm('设置初始能力', [
+    ...ABILITY_KEYS.map((key) => field(ABILITY_LABELS[key], input(`initial_${key}`, abilities[key], { type: 'number', min: '0', max: '99' }))),
+    field('基准日期', dateInput('date', LEDGER_START_DATE)),
+    field('来源说明', input('reason', '初始能力导入')),
+  ], '保存初始能力', async (data) => {
+    if (!canSetInitialAbilities) throw new Error('已有能力历史时不能覆盖初始能力，请先编辑或删除相关历史记录');
+    await actions.save((draft) => setInitialAbilities(draft, {
+      date: data.date,
+      reason: data.reason,
+      values: Object.fromEntries(ABILITY_KEYS.map((key) => [key, numberValue(data[`initial_${key}`])])),
+    }));
+  });
   const form = renderRecordForm('修改能力', [
-    field('日期', input('date', today(), { type: 'date' })),
+    field('日期', dateInput('date', currentLedgerDate(state))),
     field('能力项', select('ability', 'passing', ABILITY_KEYS.map((key) => ({ value: key, label: ABILITY_LABELS[key] })))),
     field('变化量', input('delta', 1, { type: 'number', min: '-2', max: '2' })),
     field('原因', input('reason', '')),
@@ -546,7 +619,7 @@ function renderAbilities(state, actions) {
     }));
   });
   const editForm = editor ? renderRecordForm('编辑能力历史', [
-    field('日期', input('date', editor.date || today(), { type: 'date' })),
+    field('日期', dateInput('date', editor.date || currentLedgerDate(state))),
     field('能力项', select('ability', editor.ability, ABILITY_KEYS.map((key) => ({ value: key, label: ABILITY_LABELS[key] })))),
     field('Before', input('before', editor.before, { type: 'number', min: '0', max: '99' })),
     field('After', input('after', editor.after, { type: 'number', min: '0', max: '99' })),
@@ -568,12 +641,19 @@ function renderAbilities(state, actions) {
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('abilityHistory', row.id) }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该能力历史？') && actions.save((draft) => deleteAbilityHistory(draft, row.id)) }),
   ]));
-  return h('div', {}, [form, editForm, h('h3', { text: '能力历史' }), h('ul', { class: 'fcl-list' }, history)]);
+  return h('div', {}, [
+    initialForm,
+    canSetInitialAbilities ? null : h('p', { class: 'fcl-muted', text: '已有能力变化历史后，初始能力不再允许直接覆盖；请通过增量修改或编辑历史记录调整。' }),
+    form,
+    editForm,
+    h('h3', { text: '能力历史' }),
+    h('ul', { class: 'fcl-list' }, history),
+  ]);
 }
 
-function miscFields(item = {}) {
+function miscFields(state, item = {}) {
   return [
-    field('日期', input('date', item.date || today(), { type: 'date' })),
+    field('日期', dateInput('date', item.date || currentLedgerDate(state))),
     field('键', input('key', item.key || '')),
     field('值', input('value', item.value || '')),
     field('标签（逗号分隔）', input('tags', item.tags?.join(', ') || '')),
@@ -601,10 +681,10 @@ function renderMisc(state, actions) {
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该杂项？') && actions.save((draft) => deleteMiscellaneous(draft, row.id)) }),
   ]));
   return h('div', {}, [
-    editor ? renderRecordForm('编辑杂项', miscFields(editor), '保存杂项', async (data) => {
+    editor ? renderRecordForm('编辑杂项', miscFields(state, editor), '保存杂项', async (data) => {
       await actions.save((draft) => updateMiscellaneous(draft, editor.id, miscPayload(data)));
       actions.clearEditing();
-    }) : renderRecordForm('新增杂项', miscFields(), '新增杂项', async (data, form) => {
+    }) : renderRecordForm('新增杂项', miscFields(state), '新增杂项', async (data, form) => {
       await actions.save((draft) => addMiscellaneous(draft, miscPayload(data)));
       form.reset();
     }),

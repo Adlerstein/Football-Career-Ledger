@@ -3,10 +3,12 @@ import {
   DRAFT_STATUS_VALUES,
   DRAFT_TYPES,
   HOME_AWAY_VALUES,
+  LEDGER_START_DATE,
   OPERATION_HISTORY_LIMIT,
   TRANSACTION_TYPES,
 } from './constants.js';
 import { cloneJson, createRecordMeta, createSource, nowIso } from './schema.js';
+import { parseSeasonInput } from './season-utils.js';
 import { summarizeSeason } from './selectors.js';
 import { validateState } from './validation.js';
 
@@ -44,6 +46,13 @@ function asBoolean(value) {
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function normalizeAbilityValues(values, fallback = {}) {
+  const data = asObject(values);
+  return Object.fromEntries(
+    ABILITY_KEYS.map((key) => [key, clamp(asInteger(data[key], fallback[key] ?? 0), 0, 99)]),
+  );
 }
 
 function normalizeSourceFromOptions(options = {}) {
@@ -399,6 +408,35 @@ export function applyAbilityChange(state, payload, options = {}) {
   return validateAndReturn(state);
 }
 
+export function setInitialAbilities(state, payload, options = {}) {
+  const data = asObject(payload);
+  if (state.abilities.history.length > 0 && !options.force) {
+    throw new Error('已有能力历史时不能覆盖初始能力，请先编辑或删除相关历史记录');
+  }
+  const before = {
+    current: cloneJson(state.abilities.current),
+    history: cloneJson(state.abilities.history),
+  };
+  const values = normalizeAbilityValues(data.values || data, state.abilities.current);
+  state.abilities.current = {
+    ...state.abilities.current,
+    ...values,
+  };
+  pushOperation(state, {
+    type: 'set_initial_abilities',
+    entityType: 'ability',
+    entityId: 'initial',
+    before,
+    after: {
+      current: cloneJson(state.abilities.current),
+      history: cloneJson(state.abilities.history),
+      effectiveDate: asDate(data.date || LEDGER_START_DATE),
+      reason: asString(data.reason || '初始能力导入'),
+    },
+  }, options.timestamp);
+  return validateAndReturn(state);
+}
+
 export function updateAbilityHistory(state, id, patch, options = {}) {
   const before = {
     current: cloneJson(state.abilities.current),
@@ -544,11 +582,12 @@ export function updatePlayerStatus(state, patch, options = {}) {
 
 export function buildSeasonRecord(payload, options = {}) {
   const data = asObject(payload);
+  const parsed = parseSeasonInput(data.id);
   return withMeta({
-    id: asString(data.id),
-    label: asString(data.label || data.id),
+    id: asString(parsed.id || data.id),
+    label: asString(data.label || parsed.label || data.id),
     club: asString(data.club),
-    startedAt: asDate(data.startedAt),
+    startedAt: asDate(data.startedAt || parsed.startedAt),
     endedAt: data.endedAt || null,
     status: asString(data.status || 'planned'),
     notes: asString(data.notes),

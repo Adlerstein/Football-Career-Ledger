@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   addMatch,
+  addSeason,
   addTransaction,
   applyAbilityChange,
   closeSeason,
@@ -9,13 +10,15 @@ import {
   createDraft,
   createNextSeason,
   deleteSeason,
+  setInitialAbilities,
   undoLastOperation,
   updateAbilityHistory,
   updateDraft,
 } from '../src/ledger-actions.js';
+import { parseSeasonInput } from '../src/season-utils.js';
 import { addSuggestionDrafts, parseSuggestionBlocks } from '../src/suggestions.js';
 import { getFinanceSummary, summarizeSeason } from '../src/selectors.js';
-import { migrateState } from '../src/schema.js';
+import { createInitialState, migrateState } from '../src/schema.js';
 import { validateState } from '../src/validation.js';
 import { exampleState } from './helpers.js';
 
@@ -60,6 +63,23 @@ test('match CRUD updates derived season summary', () => {
   assert.equal(summary.goals, 1);
 });
 
+test('season template and slash input normalize to stable season ids', () => {
+  assert.deepEqual(parseSeasonInput('1998/1999'), {
+    id: '1998-99',
+    label: '1998/99',
+    startedAt: '1998-07-01',
+  });
+  const state = createInitialState('1998-01-01T00:00:00.000Z');
+  addSeason(state, {
+    id: '1998/99',
+    club: '一线队',
+    status: 'active',
+  });
+  assert.equal(state.seasons[0].id, '1998-99');
+  assert.equal(state.seasons[0].label, '1998/99');
+  assert.equal(state.player.currentSeasonId, '1998-99');
+});
+
 test('finance balance is calculated from opening balances and transactions', () => {
   const state = exampleState();
   addTransaction(state, {
@@ -86,6 +106,36 @@ test('ability change records history and can be undone', () => {
   assert.equal(state.abilities.history[0].before, 67);
   undoLastOperation(state);
   assert.equal(state.abilities.current.passing, 67);
+});
+
+test('initial abilities can be set without creating growth history', () => {
+  const state = createInitialState('1998-01-01T00:00:00.000Z');
+  setInitialAbilities(state, {
+    date: '1998-01-01',
+    reason: '开档基础能力',
+    values: {
+      pace: 61,
+      shooting: 52,
+      passing: 67,
+      control: 65,
+      defending: 56,
+      physical: 58,
+      awareness: 101,
+    },
+  });
+  assert.equal(state.abilities.current.passing, 67);
+  assert.equal(state.abilities.current.awareness, 99);
+  assert.equal(state.abilities.history.length, 0);
+  assert.equal(state.operationHistory[0].type, 'set_initial_abilities');
+  undoLastOperation(state);
+  assert.equal(state.abilities.current.passing, 0);
+});
+
+test('initial abilities cannot overwrite existing ability history', () => {
+  const state = exampleState();
+  assert.throws(() => setInitialAbilities(state, {
+    values: { passing: 70 },
+  }), /已有能力历史/);
 });
 
 test('ability history can be edited', () => {

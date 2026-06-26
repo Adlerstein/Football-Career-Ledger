@@ -6,6 +6,10 @@ export const QUERY_LIMIT_MAX = 100;
 export const DEFAULT_PROMPT_MAX_CHARS = 2000;
 export const DEFAULT_RECENT_MATCH_LIMIT = 3;
 export const OPERATION_HISTORY_LIMIT = 50;
+export const LEDGER_START_DATE = '1998-01-01';
+export const DEFAULT_SEASON_START_DATE = '1998-07-01';
+export const SEASON_TEMPLATE_START_YEAR = 1998;
+export const SEASON_TEMPLATE_END_YEAR = 2040;
 
 export const ABILITY_KEYS = [
   'pace',
@@ -41,6 +45,36 @@ export const FINANCE_CATEGORIES = [
   'agent_fee',
   'other',
 ];
+
+export const CURRENCY_VALUES = [
+  'DEM',
+  'EUR',
+  'USD',
+  'GBP',
+  'FRF',
+  'ITL',
+  'ESP',
+  'NLG',
+  'BEF',
+  'CHF',
+  'CNY',
+  'JPY',
+];
+
+export const CURRENCY_LABELS = {
+  DEM: 'DEM（德国马克）',
+  EUR: 'EUR（欧元）',
+  USD: 'USD（美元）',
+  GBP: 'GBP（英镑）',
+  FRF: 'FRF（法国法郎）',
+  ITL: 'ITL（意大利里拉）',
+  ESP: 'ESP（西班牙比塞塔）',
+  NLG: 'NLG（荷兰盾）',
+  BEF: 'BEF（比利时法郎）',
+  CHF: 'CHF（瑞士法郎）',
+  CNY: 'CNY（人民币）',
+  JPY: 'JPY（日元）',
+};
 
 export const HOME_AWAY_VALUES = ['home', 'away', 'neutral'];
 export const TRANSACTION_TYPES = ['income', 'expense'];
