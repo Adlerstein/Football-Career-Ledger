@@ -8,6 +8,7 @@ let context = null;
 let api = null;
 let ui = null;
 let settings = null;
+const PROMPT_IN_CHAT_DEPTH = 1;
 
 function getSettings() {
   context.extensionSettings[EXTENSION_ID] = {
@@ -36,7 +37,7 @@ async function updatePromptInjection() {
   try {
     const state = await readLedgerState(context);
     const summary = buildPromptSummary(state, settings);
-    context.setExtensionPrompt(PROMPT_KEY, summary, promptTypes.IN_CHAT, 0, false, promptRoles.SYSTEM);
+    context.setExtensionPrompt(PROMPT_KEY, summary, promptTypes.IN_CHAT, PROMPT_IN_CHAT_DEPTH, false, promptRoles.SYSTEM);
   } catch (error) {
     console.error('[football-career-ledger] failed to update prompt summary', error);
     context.setExtensionPrompt(PROMPT_KEY, '', promptTypes.NONE, 0, false, promptRoles.SYSTEM);

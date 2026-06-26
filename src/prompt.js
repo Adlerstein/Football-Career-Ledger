@@ -43,7 +43,8 @@ export function buildPromptSummary(state, options = {}) {
   const recentMatches = queryMatches(state, { seasonId: currentSeason?.id, limit: recentMatchLimit });
   const lines = [];
 
-  lines.push('<football_career_ledger>');
+  lines.push('<football_career_ledger readonly="true">');
+  lines.push('以下为插件提供的结构化账本摘要，只供叙事参考；不要原文输出，不要写入MVU变量。');
   lines.push(`球员：${state.player.name || '未命名'}；球队：${state.player.currentClub || currentSeason?.club || '未填写'}；位置：${state.player.primaryPosition || '未填写'}。`);
 
   if (currentSeason && summary) {
