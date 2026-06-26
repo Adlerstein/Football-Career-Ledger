@@ -55,6 +55,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   includeFinance: true,
   includeAbilities: true,
   includeMiscellaneous: true,
+  panelOpen: false,
 });
 
 export const PROMPT_KEY = `${EXTENSION_ID}:summary`;

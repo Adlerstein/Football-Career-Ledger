@@ -52,6 +52,20 @@ function applySettingsToForm(root) {
   root.querySelector('#fcl_include_finance').checked = Boolean(settings.includeFinance);
   root.querySelector('#fcl_include_abilities').checked = Boolean(settings.includeAbilities);
   root.querySelector('#fcl_include_miscellaneous').checked = Boolean(settings.includeMiscellaneous);
+  syncPanelVisibility(root);
+}
+
+function syncPanelVisibility(root = document) {
+  const panel = root.querySelector('#fcl_manager_panel') || document.querySelector('#fcl_manager_panel');
+  const button = root.querySelector('#fcl_open_panel') || document.querySelector('#fcl_open_panel');
+  const isOpen = Boolean(settings.panelOpen);
+  if (panel) {
+    panel.hidden = !isOpen;
+  }
+  if (button) {
+    button.textContent = isOpen ? '收起账本面板' : '打开账本面板';
+    button.setAttribute('aria-expanded', String(isOpen));
+  }
 }
 
 function bindSettings(root) {
@@ -74,7 +88,13 @@ function bindSettings(root) {
   });
 
   root.querySelector('#fcl_open_panel').addEventListener('click', () => {
-    document.querySelector('#fcl_manager_panel')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    settings.panelOpen = !settings.panelOpen;
+    saveSettings();
+    syncPanelVisibility(root);
+    if (settings.panelOpen) {
+      ui?.refresh();
+      root.querySelector('#fcl_manager_panel')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
   });
 }
 
@@ -98,6 +118,7 @@ function mountPanel() {
     console.error('[football-career-ledger] panel host was not found');
     return;
   }
+  host.hidden = !settings.panelOpen;
 
   ui = new LedgerUi(context, api, settings, {
     updatePrompt: updatePromptInjection,
