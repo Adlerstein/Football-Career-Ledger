@@ -1,6 +1,13 @@
 import { migrateState } from './schema.js';
 import { validateState } from './validation.js';
 
+function buildSlimExportState(state) {
+  return {
+    ...state,
+    operationHistory: [],
+  };
+}
+
 export function parseImportJson(text) {
   let parsed;
   try {
@@ -28,9 +35,10 @@ export function buildImportSummary(state) {
   };
 }
 
-export function exportStateJson(state) {
+export function exportStateJson(state, options = {}) {
   validateState(state);
-  return JSON.stringify(state, null, 2);
+  const output = options.includeOperationSnapshots ? state : buildSlimExportState(state);
+  return JSON.stringify(output, null, 2);
 }
 
 export function createExampleState() {

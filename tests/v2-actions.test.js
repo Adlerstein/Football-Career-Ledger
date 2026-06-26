@@ -267,10 +267,31 @@ test('season closure stores calculated totals and next season can be created', (
     id: '1999-00',
     label: '1999/00',
     club: '拜仁慕尼黑预备队',
+    currentClub: '拜仁慕尼黑',
+    currentTeam: '拜仁慕尼黑预备队',
     startedAt: '1999-07-01',
   });
   assert.equal(state.player.currentSeasonId, '1999-00');
+  assert.equal(state.player.currentClub, '拜仁慕尼黑');
   assert.equal(state.player.currentTeam, '拜仁慕尼黑预备队');
+  assert.equal(state.seasons.find((season) => season.id === '1999-00').club, '拜仁慕尼黑预备队');
+  assert.equal(state.operationHistory[0].after, null);
+});
+
+test('next season creation supports transfers to another club and team', () => {
+  const state = exampleState();
+  closeSeason(state, '1998-99', {});
+  createNextSeason(state, {
+    id: '1999-00',
+    label: '1999/00',
+    club: '斯图加特一线队',
+    currentClub: '斯图加特',
+    currentTeam: '斯图加特一线队',
+    startedAt: '1999-07-01',
+  });
+  assert.equal(state.player.currentClub, '斯图加特');
+  assert.equal(state.player.currentTeam, '斯图加特一线队');
+  assert.equal(state.seasons.find((season) => season.id === '1999-00').club, '斯图加特一线队');
 });
 
 test('season deletion refuses existing match references', () => {

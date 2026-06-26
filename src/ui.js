@@ -213,6 +213,13 @@ function teamSelect(name, state, value = '', emptyLabel = '未设置') {
   return select(name, value, teamRows(state, value, emptyLabel));
 }
 
+function teamSelectWithCustom(name, customName, state, value = '', emptyLabel = '未设置') {
+  return h('div', { class: 'fcl-stacked-control' }, [
+    teamSelect(name, state, value, emptyLabel),
+    input(customName, '', { placeholder: '自定义队伍，可留空' }),
+  ]);
+}
+
 function currentTeamName(state) {
   return state.player.currentTeam || state.player.currentClub || '';
 }
@@ -232,6 +239,10 @@ function requireTeamValue(value) {
   const team = String(value || '').trim();
   if (!team) throw new Error('请先在基础资料设置当前队伍');
   return team;
+}
+
+function resolveTeamValue(selected, custom) {
+  return requireTeamValue(String(custom || '').trim() || selected);
 }
 
 function seasonDefaultEndDate(season) {
@@ -533,15 +544,19 @@ function renderSeasons(state, actions) {
   ]) : null;
   const createNextForm = state.seasons.length && !activeSeason ? renderRecordForm('创建下一赛季', [
     field('赛季模板', seasonTemplateSelect(nextTemplate.value)),
-    field('本赛季球队', fixedTeamValue('club', currentTeamName(state))),
+    field('新赛季俱乐部', input('currentClub', state.player.currentClub || '')),
+    field('新赛季队伍', teamSelectWithCustom('club', 'customTeam', state, currentTeamName(state), '请选择队伍')),
     field('开始日期', dateInput('startedAt', nextTemplate.startedAt)),
   ], '创建下一赛季', async (data, form) => {
     const parsed = parseSeasonInput(data.seasonTemplate);
-    const team = requireTeamValue(data.club);
+    const team = resolveTeamValue(data.club, data.customTeam);
+    const club = String(data.currentClub || state.player.currentClub || '').trim();
     await actions.save((draft) => createNextSeason(draft, {
       id: parsed.id,
       label: parsed.label,
       club: team,
+      currentClub: club,
+      currentTeam: team,
       startedAt: data.startedAt || parsed.startedAt,
     }));
     form.reset();
@@ -831,7 +846,8 @@ function renderData(state, actions) {
   const presetPreview = h('pre', { class: 'fcl-pre' }, PROMPT_PRESETS.map((preset) => `# ${preset}\n${buildPromptSummary(state, { ...actions.settings, preset })}`).join('\n\n'));
   return h('div', { class: 'fcl-data-tools' }, [
     actionbar([
-      h('button', { type: 'button', class: 'menu_button', text: '导出JSON', onclick: actions.exportJson }),
+      h('button', { type: 'button', class: 'menu_button', text: '导出精简JSON', onclick: actions.exportJson }),
+      h('button', { type: 'button', class: 'menu_button', text: '导出完整备份', onclick: actions.exportFullJson }),
       h('button', { type: 'button', class: 'menu_button', text: '示例数据', onclick: actions.downloadExample }),
       h('button', { type: 'button', class: 'menu_button', text: '复制模型建议规则', onclick: () => navigator.clipboard?.writeText(buildModelSuggestionInstructions()) }),
       h('button', { type: 'button', class: 'menu_button', text: '清空本聊天', onclick: actions.clearData }),
@@ -846,7 +862,7 @@ function renderData(state, actions) {
       class: 'menu_button',
       text: '解析并导入',
       onclick: async () => {
-        const backup = exportStateJson(state);
+        const backup = exportStateJson(state, { includeOperationSnapshots: true });
         const nextState = parseImportJson(importBox.value);
         const summary = buildImportSummary(nextState);
         if (!confirm(`确认导入？导入前已在本次会话保留内存备份。\n${JSON.stringify(summary, null, 2)}`)) return;
@@ -948,6 +964,10 @@ export class LedgerUi {
       exportJson: async () => {
         const current = await readLedgerState(this.context);
         this.context.download(exportStateJson(current), `football-career-ledger-${Date.now()}.json`, 'application/json');
+      },
+      exportFullJson: async () => {
+        const current = await readLedgerState(this.context);
+        this.context.download(exportStateJson(current, { includeOperationSnapshots: true }), `football-career-ledger-full-${Date.now()}.json`, 'application/json');
       },
       downloadExample: () => this.context.download(exportStateJson(createExampleState()), 'football-career-ledger-example.json', 'application/json'),
       clearData: async () => {

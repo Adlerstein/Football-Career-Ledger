@@ -79,7 +79,7 @@ export function pushOperation(state, operation, timestamp = nowIso()) {
     entityType: operation.entityType || '',
     entityId: operation.entityId || '',
     before: operation.before === undefined ? null : cloneJson(operation.before),
-    after: operation.after === undefined ? null : cloneJson(operation.after),
+    after: null,
     createdAt: timestamp,
     undoneAt: null,
   };

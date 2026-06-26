@@ -11,6 +11,25 @@ test('exports and imports valid json', () => {
   assert.equal(buildImportSummary(parsed).matches, 1);
 });
 
+test('default export drops operation history and full export keeps it', () => {
+  const state = exampleState();
+  state.operationHistory.unshift({
+    id: 'operation-export-test',
+    type: 'update_player',
+    entityType: 'player',
+    entityId: 'player',
+    before: { name: 'before' },
+    after: { name: 'after' },
+    createdAt: '1998-09-01T00:00:00.000Z',
+    undoneAt: null,
+  });
+  const slim = JSON.parse(exportStateJson(state));
+  const full = JSON.parse(exportStateJson(state, { includeOperationSnapshots: true }));
+  assert.deepEqual(slim.operationHistory, []);
+  assert.deepEqual(full.operationHistory[0].before, { name: 'before' });
+  assert.deepEqual(full.operationHistory[0].after, { name: 'after' });
+});
+
 test('rejects invalid import json without producing state', () => {
   assert.throws(() => parseImportJson('{bad'), /JSON 解析失败/);
 

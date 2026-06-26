@@ -173,6 +173,11 @@
   align-items: center;
 }
 
+.fcl-stacked-control {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .fcl-static-value {
   display: block;
   min-height: 2.4rem;
