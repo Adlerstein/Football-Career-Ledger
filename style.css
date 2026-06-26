@@ -167,21 +167,20 @@
   margin: 0.35rem 0 0.65rem;
 }
 
-.fcl-combo {
+.fcl-fixed-value {
   display: grid;
-  gap: 0.35rem;
+  min-height: 2.4rem;
+  align-items: center;
 }
 
-.fcl-choice-drawer summary {
-  cursor: pointer;
-  min-height: 2rem;
-}
-
-.fcl-choice-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  padding-top: 0.35rem;
+.fcl-static-value {
+  display: block;
+  min-height: 2.4rem;
+  padding: 0.55rem 0.7rem;
+  box-sizing: border-box;
+  border: 1px solid var(--SmartThemeBorderColor);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--SmartThemeBlurTintColor), transparent 45%);
 }
 
 .fcl-pre {

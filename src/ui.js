@@ -202,21 +202,36 @@ function teamCandidates(state) {
   return uniqueStrings([...suggestions, '一线队', '二队', '预备队', '青年队']);
 }
 
-function teamPicker(name, state, value = '') {
-  const target = input(name, value);
-  const buttons = teamCandidates(state).slice(0, 12).map((team) => h('button', {
-    type: 'button',
-    class: 'menu_button fcl-small',
-    text: team,
-    onclick: () => { target.value = team; },
-  }));
-  return h('div', { class: 'fcl-combo' }, [
-    target,
-    h('details', { class: 'fcl-choice-drawer' }, [
-      h('summary', { text: '选择常用队伍' }),
-      h('div', { class: 'fcl-choice-grid' }, buttons),
-    ]),
+function teamRows(state, value = '', emptyLabel = '未设置') {
+  return [
+    { value: '', label: emptyLabel },
+    ...uniqueStrings([value, ...teamCandidates(state)]).map((team) => ({ value: team, label: team })),
+  ];
+}
+
+function teamSelect(name, state, value = '', emptyLabel = '未设置') {
+  return select(name, value, teamRows(state, value, emptyLabel));
+}
+
+function currentTeamName(state) {
+  return state.player.currentTeam || state.player.currentClub || '';
+}
+
+function staticValue(value, emptyLabel = '未设置') {
+  return h('span', { class: 'fcl-static-value', text: value || emptyLabel });
+}
+
+function fixedTeamValue(name, value) {
+  return h('div', { class: 'fcl-fixed-value' }, [
+    staticValue(value, '请先在基础资料设置当前队伍'),
+    input(name, value || '', { type: 'hidden' }),
   ]);
+}
+
+function requireTeamValue(value) {
+  const team = String(value || '').trim();
+  if (!team) throw new Error('请先在基础资料设置当前队伍');
+  return team;
 }
 
 function seasonDefaultEndDate(season) {
@@ -313,7 +328,7 @@ function renderOverview(state, actions) {
     renderRecordForm('基础资料', [
       field('球员姓名', input('name', state.player.name)),
       field('当前俱乐部', input('currentClub', state.player.currentClub)),
-      field('当前队伍', teamPicker('currentTeam', state, state.player.currentTeam)),
+      field('当前队伍', teamSelect('currentTeam', state, state.player.currentTeam)),
       field('主要位置', input('primaryPosition', state.player.primaryPosition)),
       field('副位置（逗号分隔）', input('secondaryPositions', state.player.secondaryPositions.join(', '))),
       field('职业阶段', select('careerStage', state.player.careerStage, enumRowsWithCurrent(CAREER_STAGE_SELECT_VALUES, CAREER_STAGE_LABELS, state.player.careerStage))),
@@ -342,7 +357,7 @@ function matchFields(state, match = {}) {
     field('赛季', select('seasonId', match.seasonId || currentSeason?.id || '', seasonRows(state, '请先创建赛季'))),
     field('日期', dateInput('date', match.date || currentLedgerDate(state))),
     field('赛事', input('competition', match.competition || '')),
-    field('球队', input('club', match.club || state.player.currentTeam || state.player.currentClub || currentSeason?.club || '')),
+    field('球队', teamSelect('club', state, match.club || currentTeamName(state) || currentSeason?.club || '')),
     field('对手', input('opponent', match.opponent || '')),
     field('主客场', select('homeAway', match.homeAway || 'home', HOME_AWAY_VALUES)),
     field('进球', input('goalsFor', match.goalsFor ?? 0, { type: 'number', min: '0' })),
@@ -423,7 +438,7 @@ function seasonFields(state, season = {}, mode = 'edit') {
   });
   const common = [
     field('赛季模板', template),
-    field('俱乐部/队伍', teamPicker('club', state, season.club || state.player.currentTeam || state.player.currentClub)),
+    field('本赛季球队', fixedTeamValue('club', season.club || currentTeamName(state))),
     field('开始日期', dateInput('startedAt', season.startedAt || parsedSeason.startedAt || DEFAULT_SEASON_START_DATE)),
     field('备注', textarea('notes', season.notes || '')),
   ];
@@ -432,7 +447,7 @@ function seasonFields(state, season = {}, mode = 'edit') {
     field('赛季模板', template),
     field('赛季ID', input('id', season.id || state.player.currentSeasonId || '1998-99')),
     field('标签', input('label', season.label || parsedSeason.label || '1998/99')),
-    field('俱乐部/队伍', teamPicker('club', state, season.club || state.player.currentTeam || state.player.currentClub)),
+    field('赛季球队', teamSelect('club', state, season.club || currentTeamName(state))),
     field('开始日期', dateInput('startedAt', season.startedAt || parsedSeason.startedAt || DEFAULT_SEASON_START_DATE)),
     field('结束日期', dateInput('endedAt', season.endedAt || '', { value: season.endedAt || '' })),
     field('状态', select('status', season.status || 'active', ['active', 'completed', 'planned'])),
@@ -476,15 +491,16 @@ function renderSeasons(state, actions) {
   const createInitialForm = !state.seasons.length ? renderRecordForm('创建开档赛季', seasonFields(state, {
     id: '1998-99',
     label: '1998/99',
-    club: state.player.currentTeam || state.player.currentClub,
+    club: currentTeamName(state),
     startedAt: DEFAULT_SEASON_START_DATE,
     status: 'active',
   }, 'create'), '创建开档赛季', async (data, form) => {
     const parsed = parseSeasonInput(data.seasonTemplate);
+    const team = requireTeamValue(data.club);
     await actions.save((draft) => addSeason(draft, {
       id: parsed.id,
       label: parsed.label,
-      club: data.club,
+      club: team,
       startedAt: data.startedAt || parsed.startedAt,
       status: 'active',
       notes: data.notes,
@@ -517,19 +533,16 @@ function renderSeasons(state, actions) {
   ]) : null;
   const createNextForm = state.seasons.length && !activeSeason ? renderRecordForm('创建下一赛季', [
     field('赛季模板', seasonTemplateSelect(nextTemplate.value)),
-    field('队伍', teamPicker('club', state, state.player.currentTeam || state.player.currentClub)),
+    field('本赛季球队', fixedTeamValue('club', currentTeamName(state))),
     field('开始日期', dateInput('startedAt', nextTemplate.startedAt)),
-    field('当前俱乐部', input('currentClub', state.player.currentClub)),
-    field('当前队伍', teamPicker('currentTeam', state, state.player.currentTeam || state.player.currentClub)),
   ], '创建下一赛季', async (data, form) => {
     const parsed = parseSeasonInput(data.seasonTemplate);
+    const team = requireTeamValue(data.club);
     await actions.save((draft) => createNextSeason(draft, {
       id: parsed.id,
       label: parsed.label,
-      club: data.club,
+      club: team,
       startedAt: data.startedAt || parsed.startedAt,
-      currentClub: data.currentClub,
-      currentTeam: data.currentTeam,
     }));
     form.reset();
   }) : null;

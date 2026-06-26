@@ -79,6 +79,7 @@ test('season template and slash input normalize to stable season ids', () => {
   assert.equal(state.seasons[0].id, '1998-99');
   assert.equal(state.seasons[0].label, '1998/99');
   assert.equal(state.player.currentSeasonId, '1998-99');
+  assert.equal(state.player.currentTeam, '一线队');
 });
 
 test('next season creation requires closing active season first', () => {
@@ -267,9 +268,9 @@ test('season closure stores calculated totals and next season can be created', (
     label: '1999/00',
     club: '拜仁慕尼黑预备队',
     startedAt: '1999-07-01',
-    currentTeam: '拜仁慕尼黑预备队',
   });
   assert.equal(state.player.currentSeasonId, '1999-00');
+  assert.equal(state.player.currentTeam, '拜仁慕尼黑预备队');
 });
 
 test('season deletion refuses existing match references', () => {

@@ -603,6 +603,7 @@ export function addSeason(state, payload, options = {}) {
   if (season.status === 'active') {
     state.seasons = state.seasons.map((row) => ({ ...row, status: row.status === 'active' ? 'completed' : row.status }));
     state.player.currentSeasonId = season.id;
+    state.player.currentTeam = season.club || state.player.currentTeam;
   }
   state.seasons = upsertById(state.seasons, season);
   pushOperation(state, {
@@ -625,6 +626,7 @@ export function updateSeason(state, id, patch, options = {}) {
   if (after.status === 'active') {
     state.seasons = state.seasons.map((season) => ({ ...season, status: season.id === id ? 'active' : season.status === 'active' ? 'completed' : season.status }));
     state.player.currentSeasonId = id;
+    state.player.currentTeam = after.club || state.player.currentTeam;
   }
   pushOperation(state, {
     type: 'update_season',
