@@ -20,6 +20,9 @@ export async function writeLedgerState(context, reducer) {
   }
 
   let nextState = null;
+  const target = typeof context.resolveChatStateTarget === 'function'
+    ? context.resolveChatStateTarget(null)
+    : null;
   const result = await context.updateChatState(EXTENSION_ID, (current) => {
     const previous = migrateState(current);
     const reduced = reducer(previous);
@@ -28,10 +31,11 @@ export async function writeLedgerState(context, reducer) {
     return nextState;
   });
 
-  if (!result?.ok) {
-    throw new Error('Chat State 写入失败');
+  if (!result || result.ok === false) {
+    const reason = target ? JSON.stringify(result) : '当前没有可写入的活动聊天。请先打开一个角色聊天或群聊。';
+    throw new Error(`Chat State 写入失败：${reason}`);
   }
-  return nextState;
+  return result.state ? migrateState(result.state) : nextState;
 }
 
 export async function replaceLedgerState(context, state) {
@@ -44,7 +48,8 @@ export async function clearLedgerState(context) {
     throw new Error('Luker deleteChatState API 不可用');
   }
   const result = await context.deleteChatState(EXTENSION_ID);
-  if (!result?.ok) {
+  const ok = typeof result === 'boolean' ? result : Boolean(result?.ok);
+  if (!ok) {
     throw new Error('Chat State 删除失败');
   }
   return createInitialState(nowIso());
@@ -71,7 +76,7 @@ export async function copyBranchState(context, payload) {
       branchName: payload.branchName,
     },
   }), { target: payload.targetTarget });
-  return Boolean(result?.ok);
+  return Boolean(result && result.ok !== false);
 }
 
 export function upsertById(items, item) {
