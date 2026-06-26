@@ -433,10 +433,12 @@ function renderData(state, actions) {
   const selfCheckResult = h('pre', { class: 'fcl-pre' });
   const summaryText = h('pre', { class: 'fcl-pre' }, buildPromptSummary(state, actions.settings));
   return h('div', { class: 'fcl-data-tools' }, [
-    h('button', { type: 'button', class: 'menu_button', text: '导出完整JSON', onclick: actions.exportJson }),
-    h('button', { type: 'button', class: 'menu_button', text: '下载示例数据', onclick: actions.downloadExample }),
-    h('button', { type: 'button', class: 'menu_button', text: '清空当前聊天的数据', onclick: actions.clearData }),
-    h('button', { type: 'button', class: 'menu_button', text: '运行API自检', onclick: async () => { selfCheckResult.textContent = JSON.stringify(await actions.selfCheck(), null, 2); } }),
+    h('div', { class: 'fcl-actionbar' }, [
+      h('button', { type: 'button', class: 'menu_button', text: '导出JSON', onclick: actions.exportJson }),
+      h('button', { type: 'button', class: 'menu_button', text: '示例数据', onclick: actions.downloadExample }),
+      h('button', { type: 'button', class: 'menu_button', text: '清空本聊天', onclick: actions.clearData }),
+      h('button', { type: 'button', class: 'menu_button', text: 'API自检', onclick: async () => { selfCheckResult.textContent = JSON.stringify(await actions.selfCheck(), null, 2); } }),
+    ]),
     h('h3', { text: '导入JSON' }),
     importBox,
     h('button', {

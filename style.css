@@ -1,5 +1,4 @@
-.fcl-settings,
-#fcl_manager_panel {
+.fcl-settings {
   color: var(--SmartThemeBodyColor);
 }
 
@@ -13,11 +12,8 @@
 }
 
 .fcl-panel {
-  margin: 1rem 0;
-  padding: 0.75rem;
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 8px;
-  background: var(--SmartThemeBlurTintColor);
+  margin: 0.75rem 0 0;
+  padding: 0;
 }
 
 .fcl-toolbar {
@@ -45,7 +41,7 @@
 }
 
 .fcl-tabs .menu_button,
-.fcl-data-tools > .menu_button {
+.fcl-actionbar .menu_button {
   min-height: 2.5rem;
   white-space: nowrap;
 }
@@ -139,6 +135,13 @@
 .fcl-data-tools {
   display: grid;
   gap: 0.6rem;
+}
+
+.fcl-actionbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
 }
 
 .fcl-pre {

@@ -93,16 +93,10 @@ async function mountSettings() {
 }
 
 function mountPanel() {
-  let host = document.querySelector('#fcl_manager_panel');
+  const host = document.querySelector('#fcl_manager_panel');
   if (!host) {
-    host = document.createElement('section');
-    host.id = 'fcl_manager_panel';
-    const extensionsSettings = document.querySelector('#extensions_settings');
-    if (extensionsSettings) {
-      extensionsSettings.append(host);
-    } else {
-      document.body.append(host);
-    }
+    console.error('[football-career-ledger] panel host was not found');
+    return;
   }
 
   ui = new LedgerUi(context, api, settings, {
