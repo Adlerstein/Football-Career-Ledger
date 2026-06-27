@@ -6,7 +6,7 @@
   "private": false,
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check index.js && node --check src/constants.js && node --check src/formatters.js && node --check src/schema.js && node --check src/storage.js && node --check src/validation.js && node --check src/selectors.js && node --check src/season-utils.js && node --check src/ledger-actions.js && node --check src/suggestions.js && node --check src/prompt.js && node --check src/public-api.js && node --check src/ui.js && node --check src/import-export.js"
+    "check": "node --check index.js && node --check src/constants.js && node --check src/formatters.js && node --check src/schema.js && node --check src/storage.js && node --check src/validation.js && node --check src/selectors.js && node --check src/season-utils.js && node --check src/ledger-actions.js && node --check src/suggestions.js && node --check src/message-ingest.js && node --check src/prompt.js && node --check src/public-api.js && node --check src/ui.js && node --check src/import-export.js"
   },
   "keywords": [
     "luker",

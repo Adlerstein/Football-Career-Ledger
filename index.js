@@ -2,13 +2,14 @@ import { DEFAULT_SETTINGS, EXTENSION_ID, PROMPT_KEY } from './src/constants.js';
 import { buildPromptSummary } from './src/prompt.js';
 import { createPublicApi, runApiSelfCheck } from './src/public-api.js';
 import { copyBranchState, readLedgerState, writeLedgerState } from './src/storage.js';
-import { addSuggestionDrafts } from './src/suggestions.js';
+import { createMessageIngestor, resolveMessageId } from './src/message-ingest.js';
 import { LedgerUi } from './src/ui.js';
 
 let context = null;
 let api = null;
 let ui = null;
 let settings = null;
+let ingestor = null;
 const PROMPT_IN_CHAT_DEPTH = 1;
 const processedMessageKeys = new Set();
 
@@ -103,43 +104,36 @@ function bindSettings(root) {
   });
 }
 
-function getMessageById(messageId) {
-  const chat = context?.chat || globalThis.chat;
-  if (!chat) return null;
-  return chat[messageId] || null;
-}
-
-function getMessageText(message) {
-  return message?.mes || message?.message || message?.text || message?.content || '';
-}
-
-async function processAssistantMessage(messageId, eventType = 'message') {
-  if (!settings?.enabled) return;
-  const message = getMessageById(messageId);
-  if (!message || message.is_user || message.is_system) return;
-  const text = getMessageText(message);
-  if (!text.includes('<football_ledger_suggestion')) return;
-  const swipeId = Number.isInteger(message.swipe_id) ? message.swipe_id : Number(message.swipe_id ?? 0) || 0;
-  const key = `${context.getCurrentChatId?.() || context.chatId || ''}:${messageId}:${swipeId}`;
-  if (processedMessageKeys.has(key)) return;
-  processedMessageKeys.add(key);
-  try {
-    let added = 0;
-    await writeLedgerState(context, (state) => {
-      const result = addSuggestionDrafts(state, text, {
-        chatId: context.getCurrentChatId?.() || context.chatId || '',
-        messageId: String(messageId),
-        swipeId,
-      });
-      added = result.added;
-      return result.state;
-    });
-    if (added > 0) {
+function getIngestor() {
+  if (ingestor) return ingestor;
+  ingestor = createMessageIngestor({
+    processedMessageKeys,
+    getSettings: () => settings,
+    getChat: () => context?.chat || globalThis.chat,
+    getChatId: () => context?.getCurrentChatId?.() || context?.chatId || '',
+    applyDrafts: (reducer) => writeLedgerState(context, reducer),
+    onDraftsAdded: async () => {
       await updatePromptInjection();
       await ui?.refresh();
-    }
-  } catch (error) {
-    console.warn('[football-career-ledger] suggestion parsing failed', error);
+    },
+  });
+  return ingestor;
+}
+
+async function processSuggestionMessage(messageId, eventType = 'message') {
+  return getIngestor().processSuggestionMessage(messageId, eventType);
+}
+
+async function scanRecentMessagesForSuggestions(limit = 5, eventType = 'scan') {
+  return getIngestor().scanRecentMessagesForSuggestions(limit, eventType);
+}
+
+async function ingestEventPayload(payload, eventType) {
+  const messageId = resolveMessageId(payload);
+  if (messageId !== null) {
+    await processSuggestionMessage(messageId, eventType);
+  } else {
+    await scanRecentMessagesForSuggestions(5, `${eventType}_scan`);
   }
 }
 
@@ -172,6 +166,13 @@ function mountPanel() {
   ui.mount(host);
 }
 
+function onEventIfAvailable(eventName, handler) {
+  const type = context.eventTypes?.[eventName];
+  if (type !== undefined && type !== null && context.eventSource?.on) {
+    context.eventSource.on(type, handler);
+  }
+}
+
 function registerEvents() {
   const eventSource = context.eventSource;
   const types = context.eventTypes;
@@ -179,14 +180,31 @@ function registerEvents() {
     processedMessageKeys.clear();
     await updatePromptInjection();
     await ui?.refresh();
+    await scanRecentMessagesForSuggestions(10, 'chat_changed');
   });
-  eventSource?.on(types.MESSAGE_RECEIVED, async (messageId) => {
-    await processAssistantMessage(messageId, 'received');
+
+  // Parse explicit suggestion blocks in any non-system message, regardless of role.
+  // Multiple events may fire for one message; processedMessageKeys keeps it idempotent.
+  onEventIfAvailable('MESSAGE_SENT', async (payload) => {
+    await ingestEventPayload(payload, 'sent');
+    await scanRecentMessagesForSuggestions(5, 'sent_scan');
   });
-  eventSource?.on(types.GENERATION_ENDED, async (messageId) => {
-    await processAssistantMessage(messageId, 'generation');
+  onEventIfAvailable('USER_MESSAGE_SENT', async (payload) => {
+    await ingestEventPayload(payload, 'user_sent');
+    await scanRecentMessagesForSuggestions(5, 'user_sent_scan');
   });
-  eventSource?.on(types.CHAT_BRANCH_CREATED, async (payload) => {
+  onEventIfAvailable('MESSAGE_ADDED', async (payload) => {
+    await ingestEventPayload(payload, 'added');
+  });
+  onEventIfAvailable('MESSAGE_RECEIVED', async (payload) => {
+    await ingestEventPayload(payload, 'received');
+  });
+  onEventIfAvailable('GENERATION_ENDED', async (payload) => {
+    await ingestEventPayload(payload, 'generation');
+    await scanRecentMessagesForSuggestions(5, 'generation_scan');
+  });
+
+  onEventIfAvailable('CHAT_BRANCH_CREATED', async (payload) => {
     try {
       await copyBranchState(context, payload);
     } catch (error) {
