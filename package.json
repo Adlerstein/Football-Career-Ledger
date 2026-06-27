@@ -1,14 +1,15 @@
 {
   "name": "football-career-ledger",
   "version": "0.6.0",
-  "description": "Luker 足球生涯结构化账本前端插件",
+  "description": "SillyTavern 足球生涯结构化账本前端扩展",
   "type": "module",
   "private": false,
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "check": "node --check index.js && node --check src/constants.js && node --check src/formatters.js && node --check src/schema.js && node --check src/storage.js && node --check src/validation.js && node --check src/selectors.js && node --check src/season-utils.js && node --check src/ledger-actions.js && node --check src/suggestions.js && node --check src/message-ingest.js && node --check src/prompt.js && node --check src/public-api.js && node --check src/ui.js && node --check src/import-export.js"
+    "check": "node --check index.js && node --check src/constants.js && node --check src/formatters.js && node --check src/host-context.js && node --check src/schema.js && node --check src/storage.js && node --check src/validation.js && node --check src/selectors.js && node --check src/season-utils.js && node --check src/utils.js && node --check src/ledger-actions.js && node --check src/suggestions.js && node --check src/message-ingest.js && node --check src/prompt.js && node --check src/public-api.js && node --check src/import-export.js && node --check src/ui.js && node --check src/ui/dom.js && node --check src/ui/fields.js && node --check src/ui/tabs/overview.js && node --check src/ui/tabs/drafts.js && node --check src/ui/tabs/matches.js && node --check src/ui/tabs/seasons.js && node --check src/ui/tabs/contracts.js && node --check src/ui/tabs/finance.js && node --check src/ui/tabs/abilities.js && node --check src/ui/tabs/misc.js && node --check src/ui/tabs/data.js"
   },
   "keywords": [
+    "sillytavern",
     "luker",
     "extension",
     "football",

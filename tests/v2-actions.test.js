@@ -89,7 +89,7 @@ test('next season creation requires closing active season first', () => {
     id: '1999-00',
     club: '拜仁慕尼黑预备队',
     startedAt: '1999-07-01',
-  }), /先结束当前活动赛季/);
+  }), /先结束当前赛季/);
 });
 
 test('finance balance is calculated from opening balances and transactions', () => {
@@ -147,7 +147,7 @@ test('initial abilities cannot overwrite existing ability history', () => {
   const state = exampleState();
   assert.throws(() => setInitialAbilities(state, {
     values: { passing: 70 },
-  }), /已有能力历史/);
+  }), /已经有能力历史/);
 });
 
 test('ability history can be edited', () => {

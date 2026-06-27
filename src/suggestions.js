@@ -1,5 +1,6 @@
 import { DRAFT_TYPES } from './constants.js';
-import { createLedgerId, createDraft } from './ledger-actions.js';
+import { createDraft } from './ledger-actions.js';
+import { createLedgerId } from './utils.js';
 
 const SUGGESTION_RE = /<football_ledger_suggestion\b[^>]*>([\s\S]*?)<\/football_ledger_suggestion>/gi;
 
@@ -213,10 +214,10 @@ export function getSuggestionSchema(type) {
 
 export function buildModelSuggestionInstructions() {
   return [
-    '只有比赛正式结束、合同正式签订、款项实际发生、能力评估正式完成时，才输出 <football_ledger_suggestion>。',
-    '不要为普通训练、口头讨论、未完成谈判或尚未发生的未来事件输出正式账本建议。',
-    '建议块必须放在叙事正文之后。插件会要求用户确认，模型不得假设建议已经写入。',
-    '不要在建议块中虚构未发生的数据，不要输出普通自然语言摘要作为账本事实。',
+    '只有当比赛真的踢完、合同真的签了、钱真的进出、能力评估真的做完，才输出 <football_ledger_suggestion>。',
+    '普通训练、随口一提、还没谈成的合同、还没发生的事，都不要输出建议。',
+    '建议块放在正文后面。要等用户确认才算数，别当成已经写进账本了。',
+    '不要编没发生的数据，也不要把一段普通叙述直接当成账本事实。',
     '',
     '比赛建议示例：',
     '<football_ledger_suggestion>',
@@ -238,9 +239,9 @@ export function buildModelSuggestionInstructions() {
     JSON.stringify(getSuggestionSchema('ability_change'), null, 2),
     '</football_ledger_suggestion>',
     '',
-    '开局建档建议（career_start）只在职业生涯开局时使用，用于一次性写入球员基础资料、开局赛季、七项初始能力和可选开场白。',
-    '只有用户明确完成开局建档、确认创建角色，或外部建档 UI 输出正式建档结果时，才输出 career_start。',
-    '不要为普通剧情、训练、比赛、转会传闻输出 career_start。已有能力历史时确认会失败，不会覆盖既有能力。',
+    'career_start 只在开局时用一次，一次性写入球员资料、开局赛季、七项初始能力和可选的开场白。',
+    '只有用户明确完成开局建档、确认创建角色，或外部建档 UI 给出正式结果时，才输出 career_start。',
+    '普通剧情、训练、比赛、转会传闻都不要输出 career_start。已经有能力历史时再确认会失败，不会覆盖原有能力。',
     '开局建档建议示例：',
     '<football_ledger_suggestion>',
     JSON.stringify(getSuggestionSchema('career_start'), null, 2),

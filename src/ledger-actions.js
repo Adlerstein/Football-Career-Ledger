@@ -12,13 +12,7 @@ import { formatSeasonTotals } from './formatters.js';
 import { parseSeasonInput, seasonIdFromStartYear, seasonLabelFromStartYear } from './season-utils.js';
 import { applyManualTotals, summarizeSeason } from './selectors.js';
 import { validateState } from './validation.js';
-
-export function createLedgerId(prefix = 'id') {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
-  return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
+import { createLedgerId, upsertById } from './utils.js';
 
 function asObject(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
@@ -92,12 +86,6 @@ export function pushOperation(state, operation, timestamp = nowIso()) {
 function validateAndReturn(state) {
   validateState(state);
   return state;
-}
-
-function upsertById(items, item) {
-  const index = items.findIndex((row) => row.id === item.id);
-  if (index < 0) return [item, ...items];
-  return items.map((row, rowIndex) => rowIndex === index ? item : row);
 }
 
 function requireKnownSeason(state, seasonId) {
@@ -232,7 +220,7 @@ export function updateContract(state, id, patch, options = {}) {
 
 export function deleteContract(state, id, options = {}) {
   if (state.finance.transactions.some((transaction) => transaction.relatedContractId === id)) {
-    throw new Error('该合同仍被财务流水引用，不能删除');
+    throw new Error('有流水关联这份合同，删不了');
   }
   const beforeContracts = cloneJson(state.contracts);
   const before = state.contracts.find((contract) => contract.id === id);
@@ -370,11 +358,11 @@ export function applyAbilityChange(state, payload, options = {}) {
     ? clamp(beforeValue + (delta ?? 0), 0, 99)
     : clamp(asInteger(data.after), 0, 99);
   if (delta !== null && (delta < -2 || delta > 2)) {
-    throw new Error('能力单次变化量必须在 -2 到 2 之间');
+    throw new Error('单次能力变动只能在 -2 到 2 之间');
   }
   const reason = asString(data.reason).trim();
-  if (!asDate(data.date)) throw new Error('能力变更必须填写日期');
-  if (!reason) throw new Error('能力变更必须填写原因');
+  if (!asDate(data.date)) throw new Error('能力变动要填日期');
+  if (!reason) throw new Error('能力变动要填原因');
   const history = withMeta({
     id: asString(data.id || createLedgerId('ability')),
     date: asDate(data.date),
@@ -412,7 +400,7 @@ export function applyAbilityChange(state, payload, options = {}) {
 export function setInitialAbilities(state, payload, options = {}) {
   const data = asObject(payload);
   if (state.abilities.history.length > 0 && !options.force) {
-    throw new Error('已有能力历史时不能覆盖初始能力，请先编辑或删除相关历史记录');
+    throw new Error('已经有能力历史了，不能直接覆盖初始值；先去编辑或删掉相关历史');
   }
   const before = {
     current: cloneJson(state.abilities.current),
@@ -483,7 +471,7 @@ export function deleteAbilityHistory(state, id, options = {}) {
   if (!existing) throw new Error(`能力历史不存在：${id}`);
   const laterForAbility = state.abilities.history.some((item) => item.ability === existing.ability && String(item.date) > String(existing.date));
   if (laterForAbility) {
-    throw new Error('只能删除该能力项最新之后不被依赖的历史记录');
+    throw new Error('这条之后还有更新的能力记录，删不了');
   }
   const before = {
     current: cloneJson(state.abilities.current),
@@ -642,7 +630,7 @@ export function updateSeason(state, id, patch, options = {}) {
 
 export function deleteSeason(state, id, options = {}) {
   if (state.matches.some((match) => match.seasonId === id)) {
-    throw new Error('该赛季仍有比赛记录，不能删除');
+    throw new Error('这个赛季仍有比赛记录，删不了');
   }
   const before = {
     seasons: cloneJson(state.seasons),
@@ -731,7 +719,7 @@ export function closeSeason(state, seasonId, closure, options = {}) {
 
 export function recalculateSeasonClosure(state, seasonId, options = {}) {
   const season = state.seasons.find((item) => item.id === seasonId);
-  if (!season?.closedSummary) throw new Error('该赛季尚未关闭');
+  if (!season?.closedSummary) throw new Error('这个赛季还没结束');
   const before = {
     seasons: cloneJson(state.seasons),
     player: cloneJson(state.player),
@@ -771,7 +759,7 @@ export function recalculateSeasonClosure(state, seasonId, options = {}) {
 
 export function createNextSeason(state, payload, options = {}) {
   if (state.seasons.some((season) => season.status === 'active')) {
-    throw new Error('请先结束当前活动赛季，再创建下一赛季');
+    throw new Error('先结束当前赛季，再开下一个');
   }
   const before = {
     seasons: cloneJson(state.seasons),
@@ -821,10 +809,10 @@ export function applyCareerStart(state, payload, options = {}) {
   // 一次性边界：同一账本只允许成功确认一次 career_start。该判断只依赖
   // career_start 系统标记，避免拦截没有该标记的旧账本迁移数据。
   if (hasConfirmedCareerStart(state)) {
-    throw new Error('本聊天已完成开局建档，不能再次确认 career_start');
+    throw new Error('这个聊天已完成开局建档，不能再建一次');
   }
   const date = asDate(data.date);
-  if (!date) throw new Error('开局建档必须填写日期');
+  if (!date) throw new Error('开局建档要填日期');
 
   const playerInput = asObject(data.player);
   const seasonInput = asObject(data.season);
@@ -982,7 +970,7 @@ export function deleteDraft(state, draftId, options = {}) {
 export function confirmDraft(state, draftId, options = {}) {
   const draft = state.drafts.find((item) => item.id === draftId);
   if (!draft) throw new Error(`草稿不存在：${draftId}`);
-  if (draft.status !== 'pending') throw new Error('只能确认待处理草稿');
+  if (draft.status !== 'pending') throw new Error('只能确认待处理的草稿');
   const source = createSource('assistant_suggestion', {
     messageId: draft.source.messageId || null,
     swipeId: draft.source.swipeId ?? null,

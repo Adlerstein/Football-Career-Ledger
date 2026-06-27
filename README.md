@@ -1,6 +1,6 @@
 # Football-Career-Ledger
 
-`足球生涯账本` 是一个面向 `funnycups/Luker` 的第三方前端插件，用于在足球模拟人生类对话中保存结构化、可校验、可导出的长期职业数据。
+`足球生涯账本` 是一个主要面向 `funnycups/Luker`、同时兼容 SillyTavern 的第三方前端扩展，用于在足球模拟人生类对话中保存结构化、可校验、可导出的长期职业数据。
 
 当前版本：`0.6.0`  
 数据结构：`schemaVersion: 2`
@@ -12,7 +12,7 @@
 - 插件不分析普通自然语言正文。
 - 插件只解析显式 `<football_ledger_suggestion>` 结构化建议块。
 - 所有建议都必须经过用户确认，才会写入正式账本。
-- 插件不会自动写入 Luker 记忆图。
+- 插件不会自动写入宿主记忆图或向量记忆。
 - 插件不会自动修改 MVU / `stat_data`。
 - 财务余额以插件结构化账本计算结果为准。
 - 能力建议不等于正式能力变化，确认后才会生成能力历史。
@@ -27,7 +27,7 @@
 
 ## 已实现功能
 
-- Chat State 持久化，每个聊天独立保存。
+- SillyTavern 聊天级持久化，每个聊天独立保存；在 Luker 中优先使用 Chat State，纯 SillyTavern 中回退到 `chatMetadata`。
 - schema v1 自动迁移到 schema v2。
 - 球员当前职业状态：俱乐部、队伍、位置、职业阶段、队内角色。
 - 比赛、赛季、合同、财务、能力、杂项 CRUD。
@@ -82,7 +82,8 @@
 ## 公开 API
 
 ```js
-const api = Luker.getContext().getExtensionApi('football-career-ledger');
+const context = globalThis.Luker?.getContext?.() ?? globalThis.SillyTavern?.getContext?.();
+const api = context.getExtensionApi?.('football-career-ledger');
 
 await api.getSnapshot();
 await api.getPlayer();
@@ -107,17 +108,24 @@ await api.getSuggestionSchema('match');
 await api.getMemoryProjection({ notableMatchLimit: 10 });
 ```
 
-API 仍然只读，返回对象会深拷贝，外部插件不能通过返回值修改内部状态。
+API 仍然只读，返回对象会深拷贝，外部插件不能通过返回值修改内部状态。`getExtensionApi()` / `registerExtensionApi()` 属于兼容宿主提供的扩展注册表；如果某个纯 SillyTavern 环境没有该注册表，插件自身面板和账本功能仍可使用，但外部插件无法通过这组 API 读取账本。
 
 ## 安装
 
-通过 Luker 第三方扩展安装器安装 GitHub URL：
+通过 SillyTavern 的扩展面板安装 GitHub URL：
 
 ```text
 https://github.com/<your-github-user>/Football-Career-Ledger
 ```
 
-安卓 APK 中同样打开扩展管理，粘贴同一个 GitHub URL。
+在 Luker 或安卓 APK 中同样打开扩展/插件管理，粘贴同一个 GitHub URL。
+
+## 宿主兼容性
+
+- 优先使用 `Luker.getContext()` 初始化，保留 `SillyTavern.getContext()` 作为兼容入口。
+- 存储优先级为 Luker Chat State API，其次是 SillyTavern 标准 `chatMetadata + saveMetadata()`。
+- 插件不会调用模型接口，也不依赖 Luker 专属记忆图；Luker 专属能力只作为可选增强。
+- 扩展 ID、设置命名空间和公开 API 名称保持 `football-career-ledger`，方便旧数据和外部集成继续工作。
 
 ## 使用流程
 

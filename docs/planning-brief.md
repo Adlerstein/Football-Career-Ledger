@@ -4,7 +4,7 @@
 
 ## 项目背景
 
-`Football-Career-Ledger` 是面向 `funnycups/Luker` 的第三方前端插件。使用场景是足球模拟人生类长对话：用户通过模型推进剧情，但职业数据需要长期稳定保存。
+`Football-Career-Ledger` 是主要面向 `funnycups/Luker`、同时兼容 SillyTavern 的第三方前端扩展。使用场景是足球模拟人生类长对话：用户通过模型推进剧情，但职业数据需要长期稳定保存。
 
 当前痛点：
 
@@ -17,7 +17,7 @@
 
 插件已经实现：
 
-- Luker Chat State 持久化，命名空间为 `football-career-ledger`。
+- 聊天级持久化，命名空间为 `football-career-ledger`；Luker 中优先使用 Chat State，纯 SillyTavern 中回退到 `chatMetadata`。
 - 手动录入球员、赛季、比赛、合同、财务、能力和杂项。
 - JSON 导入导出、示例数据、清空数据和 API 自检。
 - 只读公开 API，供其他插件读取账本。
@@ -30,7 +30,7 @@
 - `src/selectors.js`：确定性查询和赛季统计。
 - `src/prompt.js`：提示词摘要和记忆图投影。
 - `src/ui.js`：插件面板。
-- `src/storage.js`：Luker Chat State 读写。
+- `src/storage.js`：宿主聊天级状态读写。
 - `index.js`：插件初始化、设置、提示词注入和公开 API 注册。
 
 ## 数据分工建议

@@ -119,7 +119,7 @@ export function buildPromptSummary(state, options = {}) {
   const lines = [];
 
   lines.push('<football_career_ledger readonly="true">');
-  lines.push('以下为插件提供的结构化账本摘要，只供叙事参考；不要原文输出，不要写入MVU，不要自行修改这些数值。');
+  lines.push('下面是这名球员的账本数据，写剧情时参考用。别照搬原文，也别写进 MVU 或自己改这些数字。');
   pushSection(lines, '球员', [
     `姓名：${state.player.name || '未命名'}`,
     `俱乐部：${state.player.currentClub || currentSeason?.club || '未填写'}`,
@@ -190,7 +190,7 @@ export function buildPromptSummary(state, options = {}) {
 
   const pendingDrafts = getPendingDraftCount(state);
   if (pendingDrafts) {
-    pushSection(lines, '草稿', [`当前有 ${pendingDrafts} 条待确认账本草稿，尚未写入正式数据`]);
+    pushSection(lines, '草稿', [`当前有 ${pendingDrafts} 条待确认账本草稿，还没正式写入`]);
   }
 
   lines.push('</football_career_ledger>');

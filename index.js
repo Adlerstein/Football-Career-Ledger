@@ -1,6 +1,7 @@
 import { DEFAULT_SETTINGS, EXTENSION_ID, PROMPT_KEY } from './src/constants.js';
 import { buildPromptSummary } from './src/prompt.js';
 import { createPublicApi, runApiSelfCheck } from './src/public-api.js';
+import { resolveHostContext } from './src/host-context.js';
 import { copyBranchState, readLedgerState, writeLedgerState } from './src/storage.js';
 import { createMessageIngestor, resolveMessageId } from './src/message-ingest.js';
 import { LedgerUi } from './src/ui.js';
@@ -214,9 +215,9 @@ function registerEvents() {
 }
 
 async function init() {
-  context = globalThis.Luker?.getContext?.();
+  context = resolveHostContext(globalThis);
   if (!context) {
-    console.error('[football-career-ledger] Luker.getContext() is unavailable');
+    console.error('[football-career-ledger] SillyTavern/Luker getContext() is unavailable');
     return;
   }
 

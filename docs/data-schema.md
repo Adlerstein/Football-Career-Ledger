@@ -1,6 +1,6 @@
 # 数据模型
 
-`football-career-ledger` 使用 Luker Chat State 保存每个聊天独立的 JSON 对象，命名空间固定为 `football-career-ledger`。
+`football-career-ledger` 保存每个聊天独立的 JSON 对象，命名空间固定为 `football-career-ledger`。在 Luker 中优先使用 Chat State；在纯 SillyTavern 中使用 `chatMetadata + saveMetadata()`。
 
 ## 顶层结构
 

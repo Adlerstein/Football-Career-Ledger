@@ -256,7 +256,10 @@ export function migrateState(rawState) {
     throw new Error(`不支持的 schemaVersion: ${version}`);
   }
 
-  const state = version < 2 ? migrateStateV1ToV2(raw) : migrateStateV1ToV2(raw);
+  // migrateStateV1ToV2 also serves as the v2 normalizer: it re-normalizes every
+  // collection and fills defaults, so it is safe (and idempotent) to run on data
+  // that is already at the current schema version.
+  const state = migrateStateV1ToV2(raw);
   validateState(state);
   return state;
 }
