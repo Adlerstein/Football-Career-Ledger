@@ -802,8 +802,17 @@ function deriveSeasonFromDate(date) {
   };
 }
 
+export function hasConfirmedCareerStart(state) {
+  return state.miscellaneous.some((item) => item.key === 'career_start');
+}
+
 export function applyCareerStart(state, payload, options = {}) {
   const data = asObject(payload);
+  // 一次性边界：同一账本只允许成功确认一次 career_start。该判断只依赖
+  // career_start 系统标记，避免拦截没有该标记的旧账本迁移数据。
+  if (hasConfirmedCareerStart(state)) {
+    throw new Error('本聊天已完成开局建档，不能再次确认 career_start');
+  }
   const date = asDate(data.date);
   if (!date) throw new Error('开局建档必须填写日期');
 
@@ -854,15 +863,17 @@ export function applyCareerStart(state, payload, options = {}) {
       tags: ['开局', '开场白'],
       notes,
     }, options);
-  } else if (notes) {
-    addMiscellaneous(state, {
-      date,
-      key: 'career_start_note',
-      value: notes,
-      tags: ['开局'],
-      notes: '',
-    }, options);
   }
+
+  // 系统标记：标识本账本已完成开局建档，作为一次性确认边界的唯一依据。
+  // 与 career_opening 独立保存，因为 openingText 可能为空。
+  addMiscellaneous(state, {
+    date,
+    key: 'career_start',
+    value: date,
+    tags: ['system', '开局'],
+    notes: notes || '开局建档已确认',
+  }, options);
 
   return validateAndReturn(state);
 }

@@ -2,7 +2,7 @@
 
 `足球生涯账本` 是一个面向 `funnycups/Luker` 的第三方前端插件，用于在足球模拟人生类对话中保存结构化、可校验、可导出的长期职业数据。
 
-当前版本：`0.4.0`  
+当前版本：`0.5.0`  
 数据结构：`schemaVersion: 2`
 
 ## 核心边界
@@ -32,7 +32,8 @@
 - 球员当前职业状态：俱乐部、队伍、位置、职业阶段、队内角色。
 - 比赛、赛季、合同、财务、能力、杂项 CRUD。
 - 草稿队列：查看、编辑、确认、拒绝、删除。
-- 显式建议块解析和去重。
+- 显式建议块解析和去重，覆盖 assistant 消息与用户消息。
+- 开局建档 `career_start`：一次性写入球员资料、开局赛季、初始能力与开场白，且每个账本只能成功确认一次。
 - 非法 JSON 建立 invalid 草稿，不写正式账本。
 - 最近操作撤销。
 - 赛季关闭和结算摘要。
@@ -56,6 +57,8 @@
 ```
 
 支持 `match`、`contract`、`transaction`、`ability_change`、`miscellaneous`、`career_start`。其中 `career_start` 仅用于职业生涯开局建档，会生成待确认草稿，用户确认后一次性写入球员基础资料、开局赛季、初始能力与开场白；外部建档 UI 只生成建议块，不直接调用插件写入 API。完整格式见 [docs/suggestion-format.md](docs/suggestion-format.md)。
+
+插件会解析任意非 system 消息中显式存在的 `<football_ledger_suggestion>`，因此外部建档 UI 可以把开场白与 `career_start` 建议块一起填入发送框，由用户直接发送即可进入草稿。同一账本只允许成功确认一次 `career_start`：后续 `career_start` 仍可进入 pending，但确认时会失败并标记为 invalid，不会覆盖已写入的球员资料、赛季、初始能力或杂项。撤销首次确认后该边界解除，可重新确认。
 
 ## 提示词摘要
 

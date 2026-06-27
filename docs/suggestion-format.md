@@ -145,6 +145,7 @@
 - 不要为普通剧情、训练、比赛、转会传闻输出该类型。
 - 它会生成待确认草稿；用户在插件内确认后才会写入正式账本。
 - 已有能力历史时，确认 `career_start` 会失败并把草稿标记为 invalid，不会默认覆盖既有初始能力。
+- 同一账本只允许成功确认一次：确认成功后会写入 `miscellaneous` 系统标记 `key=career_start`，后续 `career_start` 草稿确认时会失败并标记为 invalid，不会修改 player、season、abilities、miscellaneous。撤销首次确认后标记消失，可重新确认。
 - 外部建档 UI 不应调用插件写入 API，正式写入只能通过插件内部草稿确认流程完成。
 
 ```xml

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { confirmDraft, createDraft, undoLastOperation } from '../src/ledger-actions.js';
+import { confirmDraft, createDraft, hasConfirmedCareerStart, undoLastOperation } from '../src/ledger-actions.js';
 import { getSuggestionSchema, parseSuggestionBlocks } from '../src/suggestions.js';
 import { createInitialState } from '../src/schema.js';
 import { createPublicApi } from '../src/public-api.js';
@@ -98,6 +98,11 @@ test('confirm career_start writes player, season, abilities and opening text', (
   assert.ok(opening);
   assert.equal(opening.value, '开场白正文……');
 
+  const marker = state.miscellaneous.find((item) => item.key === 'career_start');
+  assert.ok(marker);
+  assert.equal(marker.value, '1998-07-01');
+  assert.ok(hasConfirmedCareerStart(state));
+
   assert.doesNotThrow(() => validateState(state));
 });
 
@@ -163,4 +168,79 @@ test('public API stays read-only and exposes no write functions', () => {
   assert.equal(typeof api.addSeason, 'undefined');
   assert.equal(typeof api.getSnapshot, 'function');
   assert.equal(typeof api.getPlayer, 'function');
+  assert.equal(typeof api.hasConfirmedCareerStart, 'undefined');
 });
+
+test('second career_start confirmation fails and does not mutate the ledger', () => {
+  const state = freshState();
+  const firstId = addCareerStartDraft(state, CAREER_START_PAYLOAD, 'cs-first');
+  confirmDraft(state, firstId);
+  assert.ok(hasConfirmedCareerStart(state));
+
+  const secondPayload = {
+    ...CAREER_START_PAYLOAD,
+    player: { ...CAREER_START_PAYLOAD.player, name: '王五' },
+    abilities: { pace: 10, shooting: 10, passing: 10, control: 10, defending: 10, physical: 10, awareness: 10 },
+  };
+  createDraft(state, {
+    type: 'career_start',
+    status: 'pending',
+    payload: secondPayload,
+    source: { messageId: 'm2', swipeId: 0, suggestionIndex: 1, contentHash: 'cs-second' },
+  });
+  const secondId = state.drafts.find((draft) => draft.source.contentHash === 'cs-second').id;
+
+  const playerBefore = JSON.stringify(state.player);
+  const seasonsBefore = JSON.stringify(state.seasons);
+  const abilitiesBefore = JSON.stringify(state.abilities);
+  const miscBefore = JSON.stringify(state.miscellaneous);
+
+  confirmDraft(state, secondId);
+
+  const secondDraft = state.drafts.find((draft) => draft.id === secondId);
+  assert.equal(secondDraft.status, 'invalid');
+  assert.ok(secondDraft.validationErrors.some((message) => message.includes('已完成开局建档')));
+
+  // 第二次确认必须完全无副作用。
+  assert.equal(JSON.stringify(state.player), playerBefore);
+  assert.equal(JSON.stringify(state.seasons), seasonsBefore);
+  assert.equal(JSON.stringify(state.abilities), abilitiesBefore);
+  assert.equal(JSON.stringify(state.miscellaneous), miscBefore);
+  assert.equal(state.player.name, '张三');
+  assert.equal(state.abilities.current.passing, 70);
+});
+
+test('undoing the first career_start removes the marker and allows reconfirmation', () => {
+  const state = freshState();
+  const firstId = addCareerStartDraft(state, CAREER_START_PAYLOAD, 'cs-undo-marker');
+  confirmDraft(state, firstId);
+  assert.ok(hasConfirmedCareerStart(state));
+
+  undoLastOperation(state);
+  assert.equal(hasConfirmedCareerStart(state), false);
+  assert.equal(state.drafts.find((draft) => draft.id === firstId).status, 'pending');
+
+  // 撤销后允许重新确认同一开局建档。
+  confirmDraft(state, firstId);
+  assert.equal(state.drafts.find((draft) => draft.id === firstId).status, 'confirmed');
+  assert.ok(hasConfirmedCareerStart(state));
+  assert.equal(state.player.name, '张三');
+});
+
+test('career_start marker is written even when openingText is empty', () => {
+  const state = freshState();
+  const payload = {
+    ...CAREER_START_PAYLOAD,
+    openingText: '',
+    notes: '',
+  };
+  const draftId = addCareerStartDraft(state, payload, 'cs-no-opening');
+  confirmDraft(state, draftId);
+
+  assert.equal(state.miscellaneous.find((item) => item.key === 'career_opening'), undefined);
+  const marker = state.miscellaneous.find((item) => item.key === 'career_start');
+  assert.ok(marker);
+  assert.equal(marker.notes, '开局建档已确认');
+  assert.ok(hasConfirmedCareerStart(state));
+});
+
