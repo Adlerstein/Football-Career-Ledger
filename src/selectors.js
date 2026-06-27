@@ -1,4 +1,4 @@
-import { ABILITY_KEYS, QUERY_LIMIT_MAX } from './constants.js';
+import { ABILITY_KEYS, MANUAL_TOTAL_KEYS, QUERY_LIMIT_MAX } from './constants.js';
 import { cloneJson } from './schema.js';
 
 function byDateDesc(a, b) {
@@ -15,6 +15,20 @@ export function getCurrentSeason(state) {
   return state.seasons.find((season) => season.id === state.player.currentSeasonId)
     || state.seasons.find((season) => season.status === 'active')
     || null;
+}
+
+// Merge manual season totals over auto-aggregated totals: for each overridable
+// key, a non-null manual value wins, otherwise the calculated value stays.
+export function applyManualTotals(autoTotals, manualTotals) {
+  const merged = { ...autoTotals };
+  if (manualTotals) {
+    for (const key of MANUAL_TOTAL_KEYS) {
+      if (manualTotals[key] !== null && manualTotals[key] !== undefined) {
+        merged[key] = manualTotals[key];
+      }
+    }
+  }
+  return merged;
 }
 
 export function summarizeSeason(state, seasonId = getCurrentSeason(state)?.id) {
@@ -49,11 +63,21 @@ export function summarizeSeason(state, seasonId = getCurrentSeason(state)?.id) {
     ? Number((rated.reduce((sum, match) => sum + match.rating, 0) / rated.length).toFixed(2))
     : null;
 
+  // Manual overrides (if any) win over match aggregation for the five tallies.
+  const manualTotals = season?.manualTotals || null;
+  const effective = applyManualTotals(totals, manualTotals);
+  const hasManualTotals = Boolean(manualTotals
+    && MANUAL_TOTAL_KEYS.some((key) => manualTotals[key] !== null && manualTotals[key] !== undefined));
+
   return {
     season: season ? cloneJson(season) : null,
     matchCount: matches.length,
-    ...totals,
+    ...effective,
     averageRating,
+    // Pure match aggregation, kept so the UI can show "auto vs manual".
+    autoTotals: { ...totals, averageRating },
+    manualTotals: manualTotals ? cloneJson(manualTotals) : null,
+    hasManualTotals,
   };
 }
 

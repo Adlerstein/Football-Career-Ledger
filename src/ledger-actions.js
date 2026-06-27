@@ -7,10 +7,10 @@ import {
   OPERATION_HISTORY_LIMIT,
   TRANSACTION_TYPES,
 } from './constants.js';
-import { cloneJson, createRecordMeta, createSource, nowIso } from './schema.js';
+import { cloneJson, createRecordMeta, createSource, normalizeManualTotals, nowIso } from './schema.js';
 import { formatSeasonTotals } from './formatters.js';
 import { parseSeasonInput, seasonIdFromStartYear, seasonLabelFromStartYear } from './season-utils.js';
-import { summarizeSeason } from './selectors.js';
+import { applyManualTotals, summarizeSeason } from './selectors.js';
 import { validateState } from './validation.js';
 
 export function createLedgerId(prefix = 'id') {
@@ -593,6 +593,7 @@ export function buildSeasonRecord(payload, options = {}) {
     status: asString(data.status || 'planned'),
     notes: asString(data.notes),
     closedSummary: data.closedSummary ?? null,
+    manualTotals: normalizeManualTotals(data.manualTotals),
   }, options, data.meta || null);
 }
 
@@ -669,8 +670,16 @@ export function deleteSeason(state, id, options = {}) {
 export function closeSeason(state, seasonId, closure, options = {}) {
   const season = state.seasons.find((item) => item.id === seasonId);
   if (!season) throw new Error(`赛季不存在：${seasonId}`);
-  const totals = summarizeSeason(state, seasonId);
   const data = asObject(closure);
+  const summary = summarizeSeason(state, seasonId);
+  // Manual overrides from the closing form (if any) win over season.manualTotals.
+  const nextManual = data.manualTotals !== undefined
+    ? normalizeManualTotals(data.manualTotals)
+    : (season.manualTotals ?? null);
+  // Effective totals = match aggregation with the manual overrides applied.
+  const totals = summary
+    ? { matchCount: summary.matchCount, ...applyManualTotals(summary.autoTotals, nextManual) }
+    : null;
   const before = {
     seasons: cloneJson(state.seasons),
     player: cloneJson(state.player),
@@ -680,6 +689,7 @@ export function closeSeason(state, seasonId, closure, options = {}) {
     ...season,
     endedAt: data.endedAt || season.endedAt || closedAt.slice(0, 10),
     status: 'completed',
+    manualTotals: nextManual,
     closedSummary: {
       calculatedTotals: totals ? {
         matchCount: totals.matchCount,

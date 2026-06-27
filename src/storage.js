@@ -44,15 +44,31 @@ export async function replaceLedgerState(context, state) {
 }
 
 export async function clearLedgerState(context) {
-  if (!context?.deleteChatState) {
+  const fresh = createInitialState(nowIso());
+  // Overwrite with a fresh state first: this is the same write path normal saves
+  // use, so it reliably resets every field — including the career_start marker in
+  // miscellaneous and ability history — even where deleteChatState leaves data behind.
+  let overwritten = false;
+  if (typeof context?.updateChatState === 'function') {
+    await writeLedgerState(context, () => fresh);
+    overwritten = true;
+  }
+  // Best-effort removal of the stored blob; failure is non-fatal since we already
+  // overwrote it with a fresh state above.
+  if (typeof context?.deleteChatState === 'function') {
+    try {
+      const result = await context.deleteChatState(EXTENSION_ID);
+      const ok = typeof result === 'boolean' ? result : Boolean(result?.ok);
+      if (!ok && !overwritten) {
+        throw new Error('Chat State 删除失败');
+      }
+    } catch (error) {
+      if (!overwritten) throw error;
+    }
+  } else if (!overwritten) {
     throw new Error('Luker deleteChatState API 不可用');
   }
-  const result = await context.deleteChatState(EXTENSION_ID);
-  const ok = typeof result === 'boolean' ? result : Boolean(result?.ok);
-  if (!ok) {
-    throw new Error('Chat State 删除失败');
-  }
-  return createInitialState(nowIso());
+  return fresh;
 }
 
 export function createId(prefix = 'id') {

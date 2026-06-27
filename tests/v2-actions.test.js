@@ -14,6 +14,7 @@ import {
   undoLastOperation,
   updateAbilityHistory,
   updateDraft,
+  updateSeason,
 } from '../src/ledger-actions.js';
 import { parseSeasonInput } from '../src/season-utils.js';
 import { addSuggestionDrafts, parseSuggestionBlocks } from '../src/suggestions.js';
@@ -298,4 +299,53 @@ test('next season creation supports transfers to another club and team', () => {
 test('season deletion refuses existing match references', () => {
   const state = exampleState();
   assert.throws(() => deleteSeason(state, '1998-99'), /仍有比赛记录/);
+});
+
+test('manual season totals override match aggregation in summarizeSeason', () => {
+  const state = exampleState();
+  const auto = summarizeSeason(state, '1998-99');
+  assert.equal(auto.hasManualTotals, false);
+  // Override goals and assists; leave the rest to auto aggregation.
+  updateSeason(state, '1998-99', { manualTotals: { goals: 25, assists: 18 } });
+  const summary = summarizeSeason(state, '1998-99');
+  assert.equal(summary.goals, 25);
+  assert.equal(summary.assists, 18);
+  assert.equal(summary.hasManualTotals, true);
+  // Non-overridden fields keep the calculated values.
+  assert.equal(summary.appearances, auto.appearances);
+  assert.equal(summary.minutes, auto.minutes);
+  // Pure aggregation stays available for the UI hint.
+  assert.equal(summary.autoTotals.goals, auto.goals);
+  assert.equal(summary.autoTotals.assists, auto.assists);
+});
+
+test('blank manual totals clear the override and fall back to auto', () => {
+  const state = exampleState();
+  updateSeason(state, '1998-99', { manualTotals: { goals: 25 } });
+  assert.equal(summarizeSeason(state, '1998-99').goals, 25);
+  // Empty strings normalize to null → no override stored.
+  updateSeason(state, '1998-99', { manualTotals: { goals: '', assists: '' } });
+  const season = state.seasons.find((item) => item.id === '1998-99');
+  assert.equal(season.manualTotals, null);
+  assert.equal(summarizeSeason(state, '1998-99').hasManualTotals, false);
+});
+
+test('closeSeason applies manual totals to the stored closed summary', () => {
+  const state = exampleState();
+  closeSeason(state, '1998-99', {
+    finalStanding: '青年联赛中游',
+    manualTotals: { goals: 30, assists: 20, appearances: 12 },
+  });
+  const closed = state.seasons.find((season) => season.id === '1998-99');
+  assert.equal(closed.status, 'completed');
+  assert.equal(closed.manualTotals.goals, 30);
+  assert.equal(closed.closedSummary.calculatedTotals.goals, 30);
+  assert.equal(closed.closedSummary.calculatedTotals.assists, 20);
+  assert.equal(closed.closedSummary.calculatedTotals.appearances, 12);
+  assert.match(closed.closedSummary.teamOutcome, /30球/);
+  // Undo restores the season without the override.
+  undoLastOperation(state);
+  const restored = state.seasons.find((season) => season.id === '1998-99');
+  assert.equal(restored.status, 'active');
+  assert.equal(restored.manualTotals, null);
 });

@@ -6,6 +6,7 @@ import {
   DRAFT_TYPES,
   FINANCE_CATEGORIES,
   HOME_AWAY_VALUES,
+  MANUAL_TOTAL_KEYS,
   SCHEMA_VERSION,
   SEASON_STATUS_VALUES,
   SOURCE_TYPES,
@@ -72,6 +73,13 @@ function validateSeason(season, errors) {
     assert(season.startedAt <= season.endedAt, `赛季 ${season.id} 结束日期早于开始日期`, errors);
   }
   assert(season.closedSummary === null || isPlainObject(season.closedSummary), `赛季 ${season.id} closedSummary 必须是对象或 null`, errors);
+  assert(season.manualTotals === null || isPlainObject(season.manualTotals), `赛季 ${season.id} manualTotals 必须是对象或 null`, errors);
+  if (isPlainObject(season.manualTotals)) {
+    MANUAL_TOTAL_KEYS.forEach((key) => {
+      const value = season.manualTotals[key];
+      assert(value === null || (Number.isInteger(value) && value >= 0), `赛季 ${season.id} manualTotals.${key} 必须是非负整数或 null`, errors);
+    });
+  }
   validateMeta(season.meta, `赛季 ${season.id}`, errors);
 }
 

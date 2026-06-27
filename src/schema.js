@@ -3,6 +3,7 @@ import {
   CAREER_STAGE_VALUES,
   DRAFT_STATUS_VALUES,
   DRAFT_TYPES,
+  MANUAL_TOTAL_KEYS,
   SCHEMA_VERSION,
   SOURCE_TYPES,
   SQUAD_ROLE_VALUES,
@@ -121,11 +122,36 @@ function withRecordMeta(record, timestamp, fallbackType = 'migration') {
   };
 }
 
+// Manual season totals: an object of MANUAL_TOTAL_KEYS → non-negative integer or
+// null (null = fall back to the value aggregated from matches). Returns null when
+// no field is set, so seasons without overrides stay clean.
+export function normalizeManualTotals(value) {
+  const data = normalizeObject(value);
+  let hasAny = false;
+  const result = {};
+  for (const key of MANUAL_TOTAL_KEYS) {
+    const raw = data[key];
+    if (raw === null || raw === undefined || raw === '') {
+      result[key] = null;
+      continue;
+    }
+    const number = Number(raw);
+    if (Number.isFinite(number) && number >= 0) {
+      result[key] = Math.floor(number);
+      hasAny = true;
+    } else {
+      result[key] = null;
+    }
+  }
+  return hasAny ? result : null;
+}
+
 function normalizeSeason(season, timestamp, fallbackType = 'migration') {
   const item = withRecordMeta(season, timestamp, fallbackType);
   return {
     ...item,
     closedSummary: item.closedSummary ?? null,
+    manualTotals: normalizeManualTotals(item.manualTotals),
   };
 }
 

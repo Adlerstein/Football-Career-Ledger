@@ -21,6 +21,24 @@ export const ABILITY_KEYS = [
   'awareness',
 ];
 
+// Season tallies the user may manually override (e.g. when not entering matches
+// one by one). Each is null = use the value aggregated from matches.
+export const MANUAL_TOTAL_KEYS = [
+  'appearances',
+  'starts',
+  'minutes',
+  'goals',
+  'assists',
+];
+
+export const MANUAL_TOTAL_LABELS = {
+  appearances: '出场',
+  starts: '首发',
+  minutes: '分钟',
+  goals: '进球',
+  assists: '助攻',
+};
+
 export const ABILITY_LABELS = {
   pace: '速度',
   shooting: '射门',

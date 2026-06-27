@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { confirmDraft, createDraft, hasConfirmedCareerStart, undoLastOperation } from '../src/ledger-actions.js';
 import { getSuggestionSchema, parseSuggestionBlocks } from '../src/suggestions.js';
 import { createInitialState } from '../src/schema.js';
+import { clearLedgerState, readLedgerState } from '../src/storage.js';
 import { createPublicApi } from '../src/public-api.js';
 import { validateState } from '../src/validation.js';
 import { exampleState } from './helpers.js';
@@ -242,5 +243,39 @@ test('career_start marker is written even when openingText is empty', () => {
   assert.ok(marker);
   assert.equal(marker.notes, '开局建档已确认');
   assert.ok(hasConfirmedCareerStart(state));
+});
+
+function mockChatContext(initialBlob) {
+  let blob = initialBlob;
+  return {
+    async getChatState() { return blob; },
+    async updateChatState(_id, reducer) {
+      blob = reducer(blob);
+      return { ok: true, state: blob };
+    },
+    async deleteChatState() { blob = null; return true; },
+    currentBlob() { return blob; },
+  };
+}
+
+test('clearing the chat resets state so career_start can be confirmed again', async () => {
+  const confirmed = freshState();
+  const draftId = addCareerStartDraft(confirmed);
+  confirmDraft(confirmed, draftId);
+  assert.ok(hasConfirmedCareerStart(confirmed));
+
+  const context = mockChatContext(confirmed);
+  const fresh = await clearLedgerState(context);
+  // The value returned by clear is a clean slate.
+  assert.equal(fresh.miscellaneous.length, 0);
+  assert.equal(fresh.abilities.history.length, 0);
+  assert.equal(hasConfirmedCareerStart(fresh), false);
+
+  // Reading the state back after clearing also yields a fresh, career_start-able ledger.
+  const reloaded = await readLedgerState(context);
+  assert.equal(hasConfirmedCareerStart(reloaded), false);
+  const reconfirmId = addCareerStartDraft(reloaded, CAREER_START_PAYLOAD, 'cs-after-clear');
+  confirmDraft(reloaded, reconfirmId);
+  assert.ok(hasConfirmedCareerStart(reloaded));
 });
 

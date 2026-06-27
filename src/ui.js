@@ -12,6 +12,8 @@ import {
   HOME_AWAY_VALUES,
   DEFAULT_SEASON_START_DATE,
   LEDGER_START_DATE,
+  MANUAL_TOTAL_KEYS,
+  MANUAL_TOTAL_LABELS,
   PROMPT_PRESETS,
   SQUAD_ROLE_LABELS,
   SQUAD_ROLE_VALUES,
@@ -432,6 +434,19 @@ function renderMatches(state, actions) {
   ]);
 }
 
+// Optional manual season tallies. Each left blank falls back to the value
+// aggregated from matches; a number overrides it. `autoTotals` (from
+// summarizeSeason) drives the "current auto value" hint in the placeholder.
+function manualTotalFields(season = {}, autoTotals = null) {
+  const manual = season.manualTotals || {};
+  return MANUAL_TOTAL_KEYS.map((key) => {
+    const auto = autoTotals ? (autoTotals[key] ?? 0) : null;
+    const placeholder = auto === null ? '留空=按比赛自动统计' : `留空=自动统计（当前 ${auto}）`;
+    const current = manual[key] === null || manual[key] === undefined ? '' : manual[key];
+    return field(`赛季${MANUAL_TOTAL_LABELS[key]}（手动覆盖，可留空）`, input(`manual_${key}`, current, { type: 'number', min: '0', placeholder }));
+  });
+}
+
 function seasonFields(state, season = {}, mode = 'edit') {
   const parsedSeason = parseSeasonInput(season.id);
   const template = select('seasonTemplate', parsedSeason.id || '1998-99', getSeasonTemplateRows());
@@ -455,6 +470,7 @@ function seasonFields(state, season = {}, mode = 'edit') {
     field('备注', textarea('notes', season.notes || '')),
   ];
   if (mode !== 'edit') return common;
+  const editAutoTotals = season.id ? summarizeSeason(state, season.id)?.autoTotals : null;
   return [
     field('赛季模板', template),
     field('赛季ID', input('id', season.id || state.player.currentSeasonId || '1998-99')),
@@ -464,6 +480,7 @@ function seasonFields(state, season = {}, mode = 'edit') {
     field('结束日期', dateInput('endedAt', season.endedAt || '', { value: season.endedAt || '' })),
     field('状态', select('status', season.status || 'active', ['active', 'completed', 'planned'])),
     field('备注', textarea('notes', season.notes || '')),
+    ...manualTotalFields(season, editAutoTotals),
   ];
 }
 
@@ -477,7 +494,13 @@ function seasonPayload(data) {
     endedAt: data.endedAt ? String(data.endedAt) : null,
     status: String(data.status || 'planned'),
     notes: String(data.notes || ''),
+    manualTotals: readManualTotals(data),
   };
+}
+
+// Pull the manual-override inputs (manual_<key>) out of a submitted form object.
+function readManualTotals(data) {
+  return Object.fromEntries(MANUAL_TOTAL_KEYS.map((key) => [key, data[`manual_${key}`]]));
 }
 
 function renderSeasons(state, actions) {
@@ -491,7 +514,7 @@ function renderSeasons(state, actions) {
   const rows = state.seasons.map((season) => {
     const summary = summarizeSeason(state, season.id);
     return h('li', { class: 'fcl-list-row' }, [
-      h('span', { text: `${season.label || season.id} ${season.status} ${summary?.appearances ?? 0}场 ${summary?.goals ?? 0}球 ${summary?.assists ?? 0}助` }),
+      h('span', { text: `${season.label || season.id} ${season.status} ${summary?.appearances ?? 0}场 ${summary?.goals ?? 0}球 ${summary?.assists ?? 0}助${summary?.hasManualTotals ? ' ·手动' : ''}` }),
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('season', season.id) }),
       season.status === 'active' ? h('button', { type: 'button', class: 'menu_button fcl-small', text: '结束', onclick: () => actions.setEditing('closeSeason', season.id) }) : null,
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除该赛季？有比赛引用的赛季会被拒绝删除。') && actions.save((draft) => deleteSeason(draft, season.id)) }),
@@ -521,12 +544,13 @@ function renderSeasons(state, actions) {
   }) : null;
   const closeForm = closeTarget ? renderRecordForm(`结束赛季：${closeTarget.label || closeTarget.id}`, [
     field('结束日期', dateInput('endedAt', seasonDefaultEndDate(closeTarget) || closeTarget.startedAt || currentLedgerDate(state))),
-    field('赛季统计', staticValue(formatSeasonTotals(summarizeSeason(state, closeTarget.id), 'compact'), '暂无比赛统计')),
+    field('比赛自动统计', staticValue(formatSeasonTotals(summarizeSeason(state, closeTarget.id)?.autoTotals, 'compact'), '暂无比赛统计')),
     field('球队赛季成绩', input('finalStanding', closeTarget.closedSummary?.finalStanding || '', { placeholder: '例如：青年联赛第2名 / 杯赛四强' })),
     field('赛季末队内角色', select('roleAtEnd', closeTarget.closedSummary?.roleAtEnd || state.player.squadRole, enumRows(SQUAD_ROLE_VALUES, SQUAD_ROLE_LABELS))),
     field('赛季简短总结', textarea('narrativeSummary', closeTarget.closedSummary?.narrativeSummary || '')),
     field('团队荣誉（奖杯/集体奖项，逗号分隔）', input('teamHonors', closeTarget.closedSummary?.teamHonors?.join(', ') || '', { placeholder: '例如：青年联赛冠军；没有可留空' })),
     field('个人荣誉（逗号分隔）', input('individualHonors', closeTarget.closedSummary?.individualHonors?.join(', ') || '')),
+    ...manualTotalFields(closeTarget, summarizeSeason(state, closeTarget.id)?.autoTotals),
   ], '确认结束赛季', async (data) => {
     if (!confirm('确认正式结束该赛季？关闭后仍保留所有比赛记录。')) return;
     await actions.save((draft) => closeSeason(draft, closeTarget.id, {
@@ -536,6 +560,7 @@ function renderSeasons(state, actions) {
       narrativeSummary: data.narrativeSummary,
       teamHonors: String(data.teamHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
       individualHonors: String(data.individualHonors || '').split(',').map((item) => item.trim()).filter(Boolean),
+      manualTotals: readManualTotals(data),
     }));
     actions.clearEditing();
   }) : null;
