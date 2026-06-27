@@ -9,7 +9,7 @@ import {
 } from './constants.js';
 import { cloneJson, createRecordMeta, createSource, nowIso } from './schema.js';
 import { formatSeasonTotals } from './formatters.js';
-import { parseSeasonInput } from './season-utils.js';
+import { parseSeasonInput, seasonIdFromStartYear, seasonLabelFromStartYear } from './season-utils.js';
 import { summarizeSeason } from './selectors.js';
 import { validateState } from './validation.js';
 
@@ -790,6 +790,83 @@ export function createNextSeason(state, payload, options = {}) {
   return validateAndReturn(state);
 }
 
+function deriveSeasonFromDate(date) {
+  const match = String(date || '').match(/^(\d{4})-(\d{2})-/);
+  if (!match) return { id: '', label: '' };
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const startYear = month >= 7 ? year : year - 1;
+  return {
+    id: seasonIdFromStartYear(startYear),
+    label: seasonLabelFromStartYear(startYear),
+  };
+}
+
+export function applyCareerStart(state, payload, options = {}) {
+  const data = asObject(payload);
+  const date = asDate(data.date);
+  if (!date) throw new Error('开局建档必须填写日期');
+
+  const playerInput = asObject(data.player);
+  const seasonInput = asObject(data.season);
+  const currentClub = asString(playerInput.currentClub);
+  const seasonClub = asString(seasonInput.club);
+  const currentTeam = asString(playerInput.currentTeam) || currentClub || seasonClub;
+  const secondaryPositions = Array.isArray(playerInput.secondaryPositions)
+    ? playerInput.secondaryPositions.map((item) => asString(item)).filter(Boolean)
+    : asString(playerInput.secondaryPositions).split(',').map((item) => item.trim()).filter(Boolean);
+
+  updatePlayerStatus(state, {
+    name: asString(playerInput.name),
+    currentClub,
+    currentTeam,
+    primaryPosition: asString(playerInput.primaryPosition),
+    secondaryPositions,
+    careerStage: asString(playerInput.careerStage || 'youth'),
+    squadRole: asString(playerInput.squadRole || 'prospect'),
+    defaultCurrency: asString(playerInput.defaultCurrency || 'DEM').trim() || 'DEM',
+  }, options);
+
+  const derived = deriveSeasonFromDate(date);
+  addSeason(state, {
+    id: asString(seasonInput.id) || derived.id,
+    label: asString(seasonInput.label) || derived.label,
+    club: seasonClub || currentTeam || currentClub,
+    startedAt: asDate(seasonInput.startedAt) || date,
+    endedAt: seasonInput.endedAt ?? null,
+    status: asString(seasonInput.status || 'active'),
+    notes: asString(seasonInput.notes || '开局赛季'),
+  }, options);
+
+  setInitialAbilities(state, {
+    date,
+    reason: asString(data.notes) || '开局建档',
+    values: normalizeAbilityValues(asObject(data.abilities)),
+  }, options);
+
+  const openingText = asString(data.openingText).trim();
+  const notes = asString(data.notes).trim();
+  if (openingText) {
+    addMiscellaneous(state, {
+      date,
+      key: 'career_opening',
+      value: openingText,
+      tags: ['开局', '开场白'],
+      notes,
+    }, options);
+  } else if (notes) {
+    addMiscellaneous(state, {
+      date,
+      key: 'career_start_note',
+      value: notes,
+      tags: ['开局'],
+      notes: '',
+    }, options);
+  }
+
+  return validateAndReturn(state);
+}
+
 export function createDraft(state, draft, options = {}) {
   const data = asObject(draft);
   const type = DRAFT_TYPES.includes(data.type) ? data.type : 'miscellaneous';
@@ -897,6 +974,8 @@ export function confirmDraft(state, draftId, options = {}) {
   };
   const before = {
     draft: cloneJson(draft),
+    player: cloneJson(state.player),
+    seasons: cloneJson(state.seasons),
     matches: cloneJson(state.matches),
     contracts: cloneJson(state.contracts),
     finance: cloneJson(state.finance),
@@ -911,8 +990,11 @@ export function confirmDraft(state, draftId, options = {}) {
     else if (draft.type === 'transaction') addTransaction(state, draft.payload, actionOptions);
     else if (draft.type === 'ability_change') applyAbilityChange(state, draft.payload, actionOptions);
     else if (draft.type === 'miscellaneous') addMiscellaneous(state, draft.payload, actionOptions);
+    else if (draft.type === 'career_start') applyCareerStart(state, draft.payload, actionOptions);
     else throw new Error(`未知草稿类型：${draft.type}`);
   } catch (error) {
+    state.player = before.player;
+    state.seasons = before.seasons;
     state.matches = before.matches;
     state.contracts = before.contracts;
     state.finance = before.finance;
@@ -945,6 +1027,8 @@ export function confirmDraft(state, draftId, options = {}) {
     before,
     after: {
       draft: confirmed,
+      player: cloneJson(state.player),
+      seasons: cloneJson(state.seasons),
       matches: cloneJson(state.matches),
       contracts: cloneJson(state.contracts),
       finance: cloneJson(state.finance),
@@ -959,6 +1043,8 @@ function restoreCollectionByEntity(state, operation) {
   const { entityType, entityId, before, after } = operation;
   if (operation.type === 'confirm_draft' && before) {
     state.drafts = upsertById(state.drafts.filter((item) => item.id !== entityId), before.draft);
+    if (before.player) state.player = before.player;
+    if (before.seasons) state.seasons = before.seasons;
     state.matches = before.matches;
     state.contracts = before.contracts;
     state.finance = before.finance;

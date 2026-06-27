@@ -136,3 +136,54 @@
 }
 </football_ledger_suggestion>
 ```
+
+## 开局建档（career_start）
+
+`career_start` 只用于职业生涯开局建档，一次性写入球员基础资料、开局赛季、七项初始能力和可选开场白 / 开局备注。
+
+- 只有用户明确完成开局建档、确认创建角色，或外部建档 UI 输出正式建档结果时才使用。
+- 不要为普通剧情、训练、比赛、转会传闻输出该类型。
+- 它会生成待确认草稿；用户在插件内确认后才会写入正式账本。
+- 已有能力历史时，确认 `career_start` 会失败并把草稿标记为 invalid，不会默认覆盖既有初始能力。
+- 外部建档 UI 不应调用插件写入 API，正式写入只能通过插件内部草稿确认流程完成。
+
+```xml
+<football_ledger_suggestion>
+{
+  "type": "career_start",
+  "payload": {
+    "date": "1998-07-01",
+    "openingText": "开场白正文……",
+    "player": {
+      "name": "张三",
+      "currentClub": "拜仁慕尼黑青年队",
+      "currentTeam": "拜仁慕尼黑青年队",
+      "primaryPosition": "中前卫／全能中场",
+      "secondaryPositions": ["前腰"],
+      "careerStage": "youth",
+      "squadRole": "prospect",
+      "defaultCurrency": "DEM"
+    },
+    "season": {
+      "id": "1998-99",
+      "label": "1998/99",
+      "club": "拜仁慕尼黑青年队",
+      "startedAt": "1998-07-01",
+      "endedAt": null,
+      "status": "active",
+      "notes": "开局赛季"
+    },
+    "abilities": {
+      "pace": 68,
+      "shooting": 62,
+      "passing": 70,
+      "control": 70,
+      "defending": 58,
+      "physical": 66,
+      "awareness": 68
+    },
+    "notes": "开局建档"
+  }
+}
+</football_ledger_suggestion>
+```

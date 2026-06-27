@@ -72,7 +72,7 @@ meta: {
 }
 ```
 
-支持类型：`match`、`contract`、`transaction`、`ability_change`、`miscellaneous`。
+支持类型：`match`、`contract`、`transaction`、`ability_change`、`miscellaneous`、`career_start`。`career_start` 用于开局建档，确认后会写入 player、当前赛季、初始能力以及可选开场白杂项记录；已有能力历史时确认会失败并标记草稿为 invalid，不会覆盖既有能力。
 
 ## 设计约束
 

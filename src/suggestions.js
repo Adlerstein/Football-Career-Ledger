@@ -171,6 +171,42 @@ export function getSuggestionSchema(type) {
         notes: '',
       },
     },
+    career_start: {
+      type: 'career_start',
+      payload: {
+        date: 'YYYY-MM-DD',
+        openingText: '',
+        player: {
+          name: '',
+          currentClub: '',
+          currentTeam: '',
+          primaryPosition: '',
+          secondaryPositions: [],
+          careerStage: 'youth',
+          squadRole: 'prospect',
+          defaultCurrency: 'DEM',
+        },
+        season: {
+          id: '1998-99',
+          label: '1998/99',
+          club: '',
+          startedAt: 'YYYY-MM-DD',
+          endedAt: null,
+          status: 'active',
+          notes: '开局赛季',
+        },
+        abilities: {
+          pace: 0,
+          shooting: 0,
+          passing: 0,
+          control: 0,
+          defending: 0,
+          physical: 0,
+          awareness: 0,
+        },
+        notes: '开局建档',
+      },
+    },
   };
   return type ? schemas[type] || null : schemas;
 }
@@ -200,6 +236,14 @@ export function buildModelSuggestionInstructions() {
     '能力建议示例：',
     '<football_ledger_suggestion>',
     JSON.stringify(getSuggestionSchema('ability_change'), null, 2),
+    '</football_ledger_suggestion>',
+    '',
+    '开局建档建议（career_start）只在职业生涯开局时使用，用于一次性写入球员基础资料、开局赛季、七项初始能力和可选开场白。',
+    '只有用户明确完成开局建档、确认创建角色，或外部建档 UI 输出正式建档结果时，才输出 career_start。',
+    '不要为普通剧情、训练、比赛、转会传闻输出 career_start。已有能力历史时确认会失败，不会覆盖既有能力。',
+    '开局建档建议示例：',
+    '<football_ledger_suggestion>',
+    JSON.stringify(getSuggestionSchema('career_start'), null, 2),
     '</football_ledger_suggestion>',
   ].join('\n');
 }

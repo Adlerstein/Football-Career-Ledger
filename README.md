@@ -55,7 +55,7 @@
 </football_ledger_suggestion>
 ```
 
-支持 `match`、`contract`、`transaction`、`ability_change`、`miscellaneous`。完整格式见 [docs/suggestion-format.md](docs/suggestion-format.md)。
+支持 `match`、`contract`、`transaction`、`ability_change`、`miscellaneous`、`career_start`。其中 `career_start` 仅用于职业生涯开局建档，会生成待确认草稿，用户确认后一次性写入球员基础资料、开局赛季、初始能力与开场白；外部建档 UI 只生成建议块，不直接调用插件写入 API。完整格式见 [docs/suggestion-format.md](docs/suggestion-format.md)。
 
 ## 提示词摘要
 

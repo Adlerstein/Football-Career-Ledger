@@ -805,6 +805,11 @@ function draftSummary(draft) {
   if (draft.type === 'contract') return `${draft.payload.club || ''} ${draft.payload.contractType || ''}`;
   if (draft.type === 'transaction') return `${draft.payload.date || ''} ${draft.payload.direction || draft.payload.type || ''} ${draft.payload.amountMinor || ''} ${draft.payload.currency || ''}`;
   if (draft.type === 'ability_change') return `${ABILITY_LABELS[draft.payload.ability] || draft.payload.ability || ''} ${draft.payload.delta ?? ''}`;
+  if (draft.type === 'career_start') {
+    const player = draft.payload.player || {};
+    const season = draft.payload.season || {};
+    return `${player.name || '未命名'} / ${player.primaryPosition || '未填写位置'} / ${season.id || draft.payload.date || '开局'}`;
+  }
   return `${draft.payload.date || ''} ${draft.payload.key || ''}=${draft.payload.value || ''}`;
 }
 

@@ -137,7 +137,7 @@ export const SQUAD_ROLE_LABELS = {
   captain: '队长',
 };
 export const SOURCE_TYPES = ['manual', 'assistant_suggestion', 'import', 'migration', 'system'];
-export const DRAFT_TYPES = ['match', 'contract', 'transaction', 'ability_change', 'miscellaneous'];
+export const DRAFT_TYPES = ['match', 'contract', 'transaction', 'ability_change', 'miscellaneous', 'career_start'];
 export const DRAFT_STATUS_VALUES = ['pending', 'confirmed', 'rejected', 'invalid'];
 export const PROMPT_PRESETS = ['minimal', 'standard', 'full'];
 
