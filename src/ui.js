@@ -10,6 +10,7 @@ import { renderFinance } from './ui/tabs/finance.js';
 import { renderMatches } from './ui/tabs/matches.js';
 import { renderMisc } from './ui/tabs/misc.js';
 import { renderOverview } from './ui/tabs/overview.js';
+import { renderReference } from './ui/tabs/reference.js';
 import { renderSeasons } from './ui/tabs/seasons.js';
 
 const tabDefs = [
@@ -21,15 +22,18 @@ const tabDefs = [
   ['finance', '财务'],
   ['abilities', '能力'],
   ['misc', '杂项'],
+  ['reference', '球探资料'],
   ['data', '数据管理'],
 ];
 
 export class LedgerUi {
-  constructor(context, api, settings, actions) {
+  constructor(context, api, settings, actions, reference = null) {
     this.context = context;
     this.api = api;
     this.settings = settings;
     this.actions = actions;
+    this.reference = reference;
+    this.referenceView = { statusText: '', preview: null };
     this.activeTab = 'overview';
     this.root = null;
     this.editing = null;
@@ -129,6 +133,12 @@ export class LedgerUi {
         });
       },
       selfCheck: this.actions.selfCheck,
+      reference: this.reference ? {
+        ...this.reference,
+        view: this.referenceView,
+        context: this.context,
+        refresh: () => this.render(),
+      } : null,
     };
 
     const renderers = {
@@ -140,8 +150,9 @@ export class LedgerUi {
       finance: () => renderFinance(state, sharedActions),
       abilities: () => renderAbilities(state, sharedActions),
       misc: () => renderMisc(state, sharedActions),
+      reference: () => renderReference(state, sharedActions),
       data: () => renderData(state, sharedActions),
     };
-    body.append(renderers[this.activeTab]());
+    body.append(await renderers[this.activeTab]());
   }
 }

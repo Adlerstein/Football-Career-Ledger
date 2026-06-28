@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "meta": {
+    "datasetId": "sample-epl-2024",
+    "title": "Sample Premier League 2024-25",
+    "defaultSeasonId": "2024-25"
+  },
+  "seasons": [
+    { "id": "2024-25", "label": "2024-25" }
+  ],
+  "competitions": [
+    { "id": "premier-league", "seasonId": "2024-25", "name": "Premier League" }
+  ],
+  "teams": [
+    { "id": "arsenal", "name": "Arsenal", "aliases": ["Gunners"] },
+    { "id": "chelsea", "name": "Chelsea", "aliases": ["Blues"] },
+    { "id": "liverpool", "name": "Liverpool", "aliases": [] },
+    { "id": "brentford", "name": "Brentford", "aliases": [] }
+  ],
+  "matches": [
+    {
+      "id": "pl-2024-r2-che-ars",
+      "seasonId": "2024-25",
+      "competitionId": "premier-league",
+      "round": "Round 2",
+      "date": "2024-08-13",
+      "homeTeamId": "chelsea",
+      "awayTeamId": "arsenal",
+      "score": { "home": 1, "away": 2 },
+      "sourceIds": ["fixture-feed"]
+    },
+    {
+      "id": "pl-2024-r2-liv-bre",
+      "seasonId": "2024-25",
+      "competitionId": "premier-league",
+      "round": "Round 2",
+      "date": "2024-08-13",
+      "homeTeamId": "liverpool",
+      "awayTeamId": "brentford",
+      "score": { "home": 3, "away": 0 },
+      "sourceIds": ["fixture-feed"]
+    }
+  ],
+  "events": [
+    {
+      "matchId": "pl-2024-r2-che-ars",
+      "minute": 27,
+      "type": "goal",
+      "teamId": "arsenal",
+      "player": "Kai Havertz",
+      "assist": "Martin Odegaard"
+    },
+    {
+      "matchId": "pl-2024-r2-che-ars",
+      "minute": 71,
+      "type": "substitution",
+      "teamId": "arsenal",
+      "playerOut": "Gabriel Martinelli",
+      "playerIn": "Leandro Trossard"
+    }
+  ],
+  "lineups": [
+    {
+      "matchId": "pl-2024-r2-che-ars",
+      "teamId": "arsenal",
+      "starters": [{ "player": "Kai Havertz", "position": "ST" }],
+      "substitutes": [{ "player": "Leandro Trossard" }]
+    }
+  ],
+  "sources": [
+    {
+      "id": "fixture-feed",
+      "label": "sample fixture feed",
+      "url": "https://example.test/epl-2024",
+      "confidence": "sample"
+    }
+  ]
+}

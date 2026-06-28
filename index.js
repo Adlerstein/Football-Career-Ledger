@@ -5,12 +5,21 @@ import { resolveHostContext } from './src/host-context.js';
 import { copyBranchState, readLedgerState, writeLedgerState } from './src/storage.js';
 import { createMessageIngestor, resolveMessageId } from './src/message-ingest.js';
 import { LedgerUi } from './src/ui.js';
+import { ensureSettings as ensureReferenceSettings, saveSettings as persistReferenceSettings } from './src/reference/settings.js';
+import { createDatasetStore } from './src/reference/storage.js';
+import { createPublicApi as createReferenceApi } from './src/reference/public-api.js';
+import { createInjectionController as createReferenceInjection } from './src/reference/injection.js';
+import { registerOrchestratorTools as registerReferenceOrchestratorTools } from './src/reference/orchestrator-tools.js';
+import { EXTENSION_ID as REFERENCE_EXTENSION_ID } from './src/reference/constants.js';
 
 let context = null;
 let api = null;
 let ui = null;
 let settings = null;
 let ingestor = null;
+let referenceApi = null;
+let referenceSettings = null;
+let referenceInjection = null;
 const PROMPT_IN_CHAT_DEPTH = 1;
 const processedMessageKeys = new Set();
 
@@ -163,7 +172,12 @@ function mountPanel() {
   ui = new LedgerUi(context, api, settings, {
     updatePrompt: updatePromptInjection,
     selfCheck: () => runApiSelfCheck(context, api, () => readLedgerState(context)),
-  });
+  }, referenceApi ? {
+    api: referenceApi,
+    injection: referenceInjection,
+    settings: referenceSettings,
+    saveSettings: () => persistReferenceSettings(context, referenceSettings),
+  } : null);
   ui.mount(host);
 }
 
@@ -214,6 +228,56 @@ function registerEvents() {
   });
 }
 
+async function loadReferenceDataset() {
+  const url = new URL('./data/sample-dataset.json', import.meta.url);
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to load football reference dataset: ${response.status}`);
+  return response.json();
+}
+
+function getLastUserMessage() {
+  const chat = context?.chat || globalThis.chat;
+  if (!Array.isArray(chat)) return '';
+  for (let index = chat.length - 1; index >= 0; index -= 1) {
+    const message = chat[index];
+    if (message?.is_user || message?.role === 'user') {
+      return String(message.mes || message.content || '');
+    }
+  }
+  return '';
+}
+
+// Football Reference Scout subsystem: read-only reference lookup + orchestrator
+// tool + one-shot prompt injection. Its settings (extensionSettings namespace)
+// and IndexedDB dataset store are independent of the chat-scoped ledger state;
+// it is surfaced through the "球探资料" panel tab.
+function setupReference() {
+  referenceSettings = ensureReferenceSettings(context);
+  const saveReference = (next = referenceSettings) => {
+    referenceSettings = next;
+    persistReferenceSettings(context, referenceSettings);
+  };
+  const datasetStore = createDatasetStore();
+  referenceApi = createReferenceApi({
+    loadDataset: loadReferenceDataset,
+    datasetStore,
+    getSettings: () => referenceSettings,
+    saveSettings: saveReference,
+    onDatasetChanged: () => ui?.render(),
+  });
+  context.registerExtensionApi?.(REFERENCE_EXTENSION_ID, referenceApi);
+  referenceInjection = createReferenceInjection({
+    context,
+    settings: referenceSettings,
+    saveSettings: saveReference,
+    buildCapsule: (args) => referenceApi.buildTurnCapsule(args),
+    getUserMessage: () => getLastUserMessage(),
+    onStateChange: () => ui?.render(),
+  });
+  registerReferenceOrchestratorTools(context, referenceApi);
+  referenceInjection.registerEvents();
+}
+
 async function init() {
   context = resolveHostContext(globalThis);
   if (!context) {
@@ -224,6 +288,7 @@ async function init() {
   getSettings();
   api = createPublicApi(() => readLedgerState(context), settings);
   context.registerExtensionApi?.(EXTENSION_ID, api);
+  setupReference();
   await mountSettings();
   mountPanel();
   registerEvents();

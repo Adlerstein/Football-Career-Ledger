@@ -517,3 +517,27 @@
     text-align: left;
   }
 }
+
+/* ---- Reference (球探资料) tab ---- */
+.fcl-ref-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.65rem;
+  border: 1px solid var(--fcl-line);
+  border-radius: 999px;
+  font-size: clamp(11px, 2.4vw, 12px);
+  color: var(--fcl-ink-soft);
+  background: var(--fcl-panel-bg);
+}
+
+.fcl-ref-pill-live {
+  color: var(--fcl-paper);
+  background: var(--fcl-accent);
+  border-color: var(--fcl-accent);
+  font-weight: 700;
+}
+
+.fcl-file-button {
+  position: relative;
+  cursor: pointer;
+}
