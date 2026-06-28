@@ -5,7 +5,7 @@
 // the chat-scoped ledger state.
 
 import { actionbar, card, field, h } from '../dom.js';
-import { getSeasonTemplateRows } from '../../season-utils.js';
+import { getSeasonTemplateRows, parseSeasonInput } from '../../season-utils.js';
 
 async function safe(fn, fallback) {
   try {
@@ -50,6 +50,39 @@ function parseDateParts(value) {
   return match
     ? { y: String(Number(match[1])), mo: String(Number(match[2])), d: String(Number(match[3])) }
     : { y: '', mo: '', d: '' };
+}
+
+// Selecting a season constrains the date pickers to that season's window
+// (e.g. 1998-99 -> 1998-07-01 .. 1999-06-30). With no season, a wide range is
+// allowed. Derived from season-utils so custom season ranges work too.
+const WIDE_BOUND = { min: '1998-01-01', max: '2025-12-31' };
+
+function seasonBoundFor(seasonId) {
+  if (seasonId) {
+    const season = parseSeasonInput(seasonId);
+    if (season.startedAt && season.endedAt) return { min: season.startedAt, max: season.endedAt };
+  }
+  return WIDE_BOUND;
+}
+
+function partsToIso(parts) {
+  const y = Number(parts.y);
+  const mo = Number(parts.mo);
+  const d = Number(parts.d);
+  if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d)) return '';
+  return `${y}-${pad2(mo)}-${pad2(Math.min(d, daysInMonth(y, mo)))}`;
+}
+
+function clampIso(date, min, max) {
+  if (!date) return date;
+  if (min && date < min) return min;
+  if (max && date > max) return max;
+  return date;
+}
+
+function composeBoundedDate(parts, bound) {
+  const iso = partsToIso(parts);
+  return iso ? clampIso(iso, bound.min, bound.max) : '';
 }
 
 export async function renderReference(state, actions) {
@@ -157,9 +190,21 @@ export async function renderReference(state, actions) {
     } }),
   ]);
 
-  // --- lookup profile: team text, season select, year/month/day date pickers ---
+  // --- lookup profile: team text, season select, season-bounded date pickers ---
   const seasonSelect = h('select', {
-    onchange: (event) => { api.updateActiveProfile({ seasonId: event.target.value }); refresh(); },
+    onchange: (event) => {
+      const nextId = event.target.value;
+      api.updateActiveProfile({ seasonId: nextId });
+      // Keep any already-picked date inside the newly selected season window.
+      const iso = partsToIso(view.dateParts);
+      if (iso) {
+        const nextBound = seasonBoundFor(nextId);
+        const clamped = clampIso(iso, nextBound.min, nextBound.max);
+        view.dateParts = parseDateParts(clamped);
+        api.updateActiveProfile({ currentDate: clamped });
+      }
+      refresh();
+    },
   }, [
     (() => { const option = h('option', { value: '', text: '未选择' }); option.selected = !settings.currentSeasonId; return option; })(),
     ...getSeasonTemplateRows(1998, 2024).map((row) => {
@@ -169,41 +214,44 @@ export async function renderReference(state, actions) {
     }),
   ]);
 
+  const bound = seasonBoundFor(settings.currentSeasonId);
+  const minP = parseDateParts(bound.min);
+  const maxP = parseDateParts(bound.max);
+  const minY = Number(minP.y);
+  const maxY = Number(maxP.y);
+  const minMo = Number(minP.mo);
+  const maxMo = Number(maxP.mo);
+  const minD = Number(minP.d);
+  const maxD = Number(maxP.d);
+
+  const parts = view.dateParts;
+  const yy = Number(parts.y);
+  const mm = Number(parts.mo);
+  const monthLower = yy === minY ? minMo : 1;
+  const monthUpper = yy === maxY ? maxMo : 12;
+  const dayBase = (Number.isInteger(yy) && Number.isInteger(mm)) ? daysInMonth(yy, mm) : 31;
+  const dayLower = (yy === minY && mm === minMo) ? minD : 1;
+  const dayUpper = (yy === maxY && mm === maxMo) ? Math.min(maxD, dayBase) : dayBase;
+
   const dateOption = (value, label, current) => {
     const option = h('option', { value, text: label });
     option.selected = String(value) === String(current ?? '');
     return option;
   };
-  const parts = view.dateParts;
-  const yNum = Number(parts.y);
-  const moNum = Number(parts.mo);
-  const maxDay = (Number.isInteger(yNum) && Number.isInteger(moNum)) ? daysInMonth(yNum, moNum) : 31;
-  const composeDate = () => {
-    const y = Number(view.dateParts.y);
-    const mo = Number(view.dateParts.mo);
-    let d = Number(view.dateParts.d);
-    if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d)) return '';
-    const max = daysInMonth(y, mo);
-    if (d > max) { d = max; view.dateParts.d = String(d); }
-    return `${y}-${pad2(mo)}-${pad2(d)}`;
-  };
   const onDatePart = (key, value) => {
     view.dateParts[key] = value;
-    const y = Number(view.dateParts.y);
-    const mo = Number(view.dateParts.mo);
-    if (Number.isInteger(y) && Number.isInteger(mo) && Number(view.dateParts.d) > daysInMonth(y, mo)) {
-      view.dateParts.d = String(daysInMonth(y, mo));
-    }
-    api.updateActiveProfile({ currentDate: composeDate() });
+    const iso = composeBoundedDate(view.dateParts, bound);
+    if (iso) view.dateParts = parseDateParts(iso);
+    api.updateActiveProfile({ currentDate: iso });
     refresh();
   };
   const dateRow = h('div', { class: 'fcl-date-row' }, [
     h('select', { onchange: (event) => onDatePart('y', event.target.value) },
-      [dateOption('', '年', parts.y), ...range(1998, 2025).map((value) => dateOption(String(value), `${value}`, parts.y))]),
+      [dateOption('', '年', parts.y), ...range(minY, maxY).map((value) => dateOption(String(value), `${value}`, parts.y))]),
     h('select', { onchange: (event) => onDatePart('mo', event.target.value) },
-      [dateOption('', '月', parts.mo), ...range(1, 12).map((value) => dateOption(String(value), `${value}月`, parts.mo))]),
+      [dateOption('', '月', parts.mo), ...range(monthLower, monthUpper).map((value) => dateOption(String(value), `${value}月`, parts.mo))]),
     h('select', { onchange: (event) => onDatePart('d', event.target.value) },
-      [dateOption('', '日', parts.d), ...range(1, maxDay).map((value) => dateOption(String(value), `${value}日`, parts.d))]),
+      [dateOption('', '日', parts.d), ...range(dayLower, dayUpper).map((value) => dateOption(String(value), `${value}日`, parts.d))]),
   ]);
   const profileCard = card('查询档案', h('div', {}, [
     field('球队', h('input', {
