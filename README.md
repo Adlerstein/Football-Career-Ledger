@@ -41,7 +41,9 @@
 - 提示词摘要三档预设：`minimal`、`standard`、`full`。
 - 只读公开 API v2。
 - JSON 导入导出。
-- 移动端窄屏卡片式面板。
+- “球探报告”主题面板：复古档案纸质感（稿纸横线、内嵌边框、衬线排版、点线分节标题、印章绿/警示红配色），与 Luker 足球世界建档界面风格统一。
+- 混合明暗皮肤：自动跟随宿主 SillyTavern 主题，浅色主题用纸张配色，深色主题切换为夜间羊皮纸配色，不会在深色主题下变成刺眼的浅色块。
+- 移动端窄屏卡片式面板，全程响应式排版。
 
 ## 建议块格式
 
@@ -109,14 +111,6 @@ await api.getMemoryProjection({ notableMatchLimit: 10 });
 ```
 
 API 仍然只读，返回对象会深拷贝，外部插件不能通过返回值修改内部状态。`getExtensionApi()` / `registerExtensionApi()` 属于兼容宿主提供的扩展注册表；如果某个纯 SillyTavern 环境没有该注册表，插件自身面板和账本功能仍可使用，但外部插件无法通过这组 API 读取账本。
-
-## 安装
-
-通过 SillyTavern 的扩展面板安装 GitHub URL：
-
-```text
-https://github.com/<your-github-user>/Football-Career-Ledger
-```
 
 在 Luker 或安卓 APK 中同样打开扩展/插件管理，粘贴同一个 GitHub URL。
 
