@@ -1,9 +1,83 @@
+/* Football Career Ledger — "scouting report" skin.
+ *
+ * The manager panel (.fcl-panel) is themed as a vintage archive sheet, echoing
+ * Luker's football "建档/球探报告" UI: paper texture, ruled lines, serif type,
+ * dotted-underline section headers and an accent-green / stamp-red palette.
+ *
+ * It is a hybrid skin: a light "paper" palette by default and a dark "parchment
+ * at night" variant. ui.js samples the host SillyTavern theme and stamps
+ * data-fcl-theme="light|dark" on the panel; the @media block below is a no-JS
+ * fallback. The settings drawer (.fcl-settings) deliberately stays ST-native so
+ * it blends into the extensions panel — only the manager panel gets the skin.
+ */
+
+/* ---- Design tokens: light / paper (default) ---- */
+.fcl-panel {
+  --fcl-paper: #f4ecd8;
+  --fcl-paper-2: #e7d9b8;
+  --fcl-panel-bg: rgba(255, 252, 242, 0.5);
+  --fcl-ink: #1f3329;
+  --fcl-ink-soft: #52614f;
+  --fcl-line: #c7b78e;
+  --fcl-line-soft: rgba(120, 95, 45, 0.3);
+  --fcl-accent: #1f5d3f;
+  --fcl-accent-dark: #143f2a;
+  --fcl-accent-tint: rgba(31, 93, 63, 0.08);
+  --fcl-stamp: #a8362a;
+  --fcl-warn: #8a5a12;
+  --fcl-ruled: rgba(60, 90, 70, 0.045);
+  --fcl-shadow: rgba(120, 95, 45, 0.1);
+  --fcl-radius: 4px;
+  --fcl-font-serif: "Times New Roman", "Times", "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
+  --fcl-font-mono: "Courier New", monospace;
+  color-scheme: light;
+}
+
+/* ---- Design tokens: dark / parchment at night ---- */
+.fcl-panel[data-fcl-theme="dark"] {
+  --fcl-paper: #1b211c;
+  --fcl-paper-2: #141915;
+  --fcl-panel-bg: rgba(70, 84, 70, 0.16);
+  --fcl-ink: #e7e0c6;
+  --fcl-ink-soft: #aab09a;
+  --fcl-line: #54624e;
+  --fcl-line-soft: rgba(180, 200, 170, 0.16);
+  --fcl-accent: #6cba8c;
+  --fcl-accent-dark: #2f6a49;
+  --fcl-accent-tint: rgba(108, 186, 140, 0.12);
+  --fcl-stamp: #e0695a;
+  --fcl-warn: #d9b066;
+  --fcl-ruled: rgba(180, 200, 170, 0.035);
+  --fcl-shadow: rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  .fcl-panel:not([data-fcl-theme="light"]) {
+    --fcl-paper: #1b211c;
+    --fcl-paper-2: #141915;
+    --fcl-panel-bg: rgba(70, 84, 70, 0.16);
+    --fcl-ink: #e7e0c6;
+    --fcl-ink-soft: #aab09a;
+    --fcl-line: #54624e;
+    --fcl-line-soft: rgba(180, 200, 170, 0.16);
+    --fcl-accent: #6cba8c;
+    --fcl-accent-dark: #2f6a49;
+    --fcl-accent-tint: rgba(108, 186, 140, 0.12);
+    --fcl-stamp: #e0695a;
+    --fcl-warn: #d9b066;
+    --fcl-ruled: rgba(180, 200, 170, 0.035);
+    --fcl-shadow: rgba(0, 0, 0, 0.35);
+    color-scheme: dark;
+  }
+}
+
+/* ---- Settings drawer: stay ST-native, just tidy the rows ---- */
 .fcl-settings {
   color: var(--SmartThemeBodyColor);
 }
 
-.fcl-setting-row,
-.fcl-field {
+.fcl-setting-row {
   display: grid;
   grid-template-columns: minmax(8rem, 0.7fr) minmax(0, 1fr);
   gap: 0.5rem;
@@ -11,104 +85,275 @@
   margin: 0.45rem 0;
 }
 
+/* ---- The sheet ---- */
 .fcl-panel {
+  position: relative;
+  overflow: hidden;
   margin: 0.75rem 0 0;
-  padding: 0;
+  padding: clamp(14px, 3vw, 22px);
+  color: var(--fcl-ink);
+  font-family: var(--fcl-font-serif);
+  line-height: 1.55;
+  border: 1px solid var(--fcl-line);
+  border-radius: 6px;
+  background:
+    repeating-linear-gradient(0deg, transparent, transparent 31px, var(--fcl-ruled) 31px, var(--fcl-ruled) 32px),
+    linear-gradient(160deg, var(--fcl-paper), var(--fcl-paper-2));
+  box-shadow: inset 0 0 60px var(--fcl-shadow);
 }
 
+.fcl-panel::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1px solid var(--fcl-line-soft);
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.fcl-panel > * {
+  position: relative;
+}
+
+/* ---- Report header ---- */
 .fcl-toolbar {
   display: flex;
-  gap: 0.75rem;
-  align-items: center;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  align-items: flex-end;
+  gap: 14px;
+  border-bottom: 2px solid var(--fcl-ink);
+  padding-bottom: 10px;
+  margin-bottom: 14px;
+}
+
+.fcl-headline {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.fcl-kicker {
+  font-size: clamp(10px, 2.2vw, 12px);
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--fcl-accent);
+}
+
+.fcl-title {
+  font-size: clamp(18px, 4.5vw, 26px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--fcl-ink);
+}
+
+.fcl-status {
+  flex: 0 1 auto;
+  min-height: 1.2em;
+  font-size: clamp(11px, 2.4vw, 13px);
+  font-style: italic;
+  text-align: right;
+  color: var(--fcl-ink-soft);
 }
 
 .fcl-status[data-kind="success"] {
-  color: var(--successColor, #28a745);
+  color: var(--fcl-accent);
+  font-style: normal;
+  font-weight: 700;
 }
 
 .fcl-status[data-kind="error"],
 .fcl-error {
-  color: var(--warning, #ff5555);
+  color: var(--fcl-stamp);
 }
 
+.fcl-error {
+  font-weight: 600;
+}
+
+/* ---- Tabs ---- */
 .fcl-tabs {
   display: flex;
-  gap: 0.35rem;
+  flex-wrap: wrap;
+  gap: 6px;
   overflow-x: auto;
-  padding-bottom: 0.35rem;
+  padding-bottom: 10px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--fcl-line-soft);
 }
 
-.fcl-tabs .menu_button,
-.fcl-actionbar .menu_button {
-  min-height: 2.5rem;
+/* ---- Buttons: primary (solid) by default ---- */
+.fcl-panel .menu_button {
+  min-height: 2.4rem;
+  padding: 0.4rem 0.95rem;
   white-space: nowrap;
+  border: 0;
+  border-radius: 3px;
+  background: var(--fcl-accent);
+  color: var(--fcl-paper);
+  font-family: var(--fcl-font-serif);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 2px 0 var(--fcl-accent-dark);
+  transition: transform 0.05s ease, filter 0.15s ease, background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
 }
 
-.fcl-active {
-  outline: 2px solid var(--SmartThemeQuoteColor);
+.fcl-panel .menu_button:hover {
+  filter: brightness(1.08);
+}
+
+.fcl-panel .menu_button:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 var(--fcl-accent-dark);
+}
+
+/* Tab buttons: ghost, with the active one promoted to solid. */
+.fcl-tabs .menu_button {
+  background: transparent;
+  color: var(--fcl-ink-soft);
+  border: 1px solid var(--fcl-line);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.fcl-tabs .menu_button:hover {
+  filter: none;
+  color: var(--fcl-ink);
+  border-color: var(--fcl-accent);
+  background: var(--fcl-accent-tint);
+}
+
+.fcl-tabs .menu_button.fcl-active {
+  background: var(--fcl-accent);
+  color: var(--fcl-paper);
+  border-color: var(--fcl-accent);
+  outline: none;
+  box-shadow: 0 2px 0 var(--fcl-accent-dark);
+}
+
+/* Secondary buttons (row edit/delete, inline small actions): ghost. */
+.fcl-panel .fcl-small {
+  min-height: 2.2rem;
+  padding-inline: 0.7rem;
+  background: transparent;
+  color: var(--fcl-accent);
+  border: 1px solid var(--fcl-line);
+  box-shadow: none;
+  font-weight: 600;
+}
+
+.fcl-panel .fcl-small:hover {
+  filter: none;
+  background: var(--fcl-accent-tint);
+  border-color: var(--fcl-accent);
+}
+
+.fcl-panel .fcl-small:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 .fcl-body {
-  margin-top: 0.75rem;
+  margin-top: 14px;
 }
 
+/* ---- Section headings (e.g. "比赛列表") ---- */
+.fcl-panel h3 {
+  margin: 18px 0 10px;
+  font-size: clamp(14px, 3.2vw, 17px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--fcl-ink);
+  border-bottom: 2px solid var(--fcl-ink);
+  padding-bottom: 6px;
+}
+
+/* ---- Overview cards ---- */
 .fcl-summary-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
-  gap: 0.5rem;
+  gap: 12px;
 }
 
 .fcl-card {
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 8px;
-  padding: 0.65rem;
-  background: color-mix(in srgb, var(--SmartThemeBlurTintColor), transparent 35%);
+  position: relative;
+  border: 1px solid var(--fcl-line);
+  border-radius: 3px;
+  padding: 13px 14px;
+  background: var(--fcl-panel-bg);
 }
 
 .fcl-card h4 {
-  margin: 0 0 0.35rem;
-  font-size: 1rem;
+  margin: 0 0 9px;
+  font-size: clamp(12px, 2.6vw, 14px);
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fcl-accent);
+  border-bottom: 1px dotted var(--fcl-line);
+  padding-bottom: 6px;
 }
 
 .fcl-card p {
   margin: 0;
+  color: var(--fcl-ink);
+}
+
+.fcl-card ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--fcl-ink);
 }
 
 .fcl-card .fcl-actionbar {
-  margin-top: 0.55rem;
+  margin-top: 10px;
 }
 
 .fcl-wide {
   grid-column: 1 / -1;
 }
 
+/* ---- Editor / form ---- */
 .fcl-editor {
-  border-block: 1px solid var(--SmartThemeBorderColor);
-  padding-block: 0.65rem;
-  margin-block: 0.75rem;
+  border: 1px solid var(--fcl-line);
+  border-radius: 3px;
+  background: var(--fcl-panel-bg);
+  padding: 14px 15px;
+  margin: 16px 0;
 }
 
 .fcl-editor h3 {
-  margin-top: 0;
+  margin: 0 0 4px;
+  border-bottom: 1px dotted var(--fcl-line);
+  color: var(--fcl-accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding-bottom: 8px;
 }
 
 .fcl-form {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
-  gap: 0.55rem 0.8rem;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: 12px 16px;
   align-items: end;
-  margin: 0.75rem 0;
+  margin: 12px 0 0;
 }
 
 .fcl-compact-form {
-  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
 }
 
 .fcl-field {
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   margin: 0;
+}
+
+.fcl-field > span {
+  color: var(--fcl-ink-soft);
+  font-style: italic;
+  font-size: clamp(12px, 2.6vw, 13px);
 }
 
 .fcl-field input,
@@ -116,97 +361,141 @@
 .fcl-field textarea,
 .fcl-import-box {
   width: 100%;
-  min-height: 2.4rem;
   box-sizing: border-box;
+  min-height: 2.3rem;
+  padding: 7px 2px;
+  font: inherit;
+  color: var(--fcl-ink);
+  background: transparent;
+  border: 0;
+  border-bottom: 1.5px solid var(--fcl-line);
+  border-radius: 0;
+}
+
+.fcl-field input:focus,
+.fcl-field select:focus,
+.fcl-field textarea:focus,
+.fcl-import-box:focus {
+  outline: 0;
+  border-bottom-color: var(--fcl-accent);
 }
 
 .fcl-field textarea,
 .fcl-import-box {
   min-height: 5rem;
   resize: vertical;
+  padding: 8px;
+  border: 1px solid var(--fcl-line);
+  border-radius: 3px;
+  background: var(--fcl-panel-bg);
 }
 
+/* Checkboxes must not stretch like text fields. */
+.fcl-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  min-height: 0;
+  align-self: flex-start;
+  border-bottom: 0;
+  accent-color: var(--fcl-accent);
+}
+
+/* ---- Lists ---- */
 .fcl-list {
   list-style: none;
   padding: 0;
-  margin: 0.5rem 0;
+  margin: 10px 0 0;
 }
 
 .fcl-list-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) repeat(4, auto);
-  gap: 0.4rem;
+  gap: 8px;
   align-items: center;
-  padding: 0.45rem 0;
-  border-bottom: 1px solid var(--SmartThemeBorderColor);
+  padding: 9px 4px;
+  border-bottom: 1px dotted var(--fcl-line);
+}
+
+.fcl-list-row:hover {
+  background: var(--fcl-accent-tint);
+}
+
+.fcl-list-row > span {
+  color: var(--fcl-ink);
+  font-size: clamp(13px, 2.8vw, 14px);
 }
 
 .fcl-draft-row {
   grid-template-columns: minmax(0, 1fr) repeat(5, auto);
 }
 
-.fcl-small {
-  min-height: 2.25rem;
-  padding-inline: 0.65rem;
-}
-
+/* ---- Misc blocks ---- */
 .fcl-data-tools {
   display: grid;
-  gap: 0.6rem;
+  gap: 12px;
 }
 
 .fcl-actionbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 8px;
   align-items: center;
 }
 
 .fcl-muted {
-  color: color-mix(in srgb, var(--SmartThemeBodyColor), transparent 32%);
-  margin: 0.35rem 0 0.65rem;
+  margin: 6px 0 10px;
+  color: var(--fcl-ink-soft);
+  font-style: italic;
+  font-size: clamp(12px, 2.6vw, 13px);
 }
 
 .fcl-fixed-value {
   display: grid;
-  min-height: 2.4rem;
+  min-height: 2.3rem;
   align-items: center;
 }
 
 .fcl-stacked-control {
   display: grid;
-  gap: 0.35rem;
+  gap: 6px;
 }
 
 .fcl-static-value {
   display: block;
-  min-height: 2.4rem;
-  padding: 0.55rem 0.7rem;
+  min-height: 2.3rem;
+  padding: 8px 10px;
   box-sizing: border-box;
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--SmartThemeBlurTintColor), transparent 45%);
+  color: var(--fcl-ink);
+  border: 1px solid var(--fcl-line);
+  border-radius: 3px;
+  background: var(--fcl-panel-bg);
 }
 
 .fcl-pre {
   max-height: 16rem;
   overflow: auto;
   white-space: pre-wrap;
-  border: 1px solid var(--SmartThemeBorderColor);
-  border-radius: 6px;
-  padding: 0.6rem;
+  word-break: break-word;
+  padding: 11px;
+  color: var(--fcl-ink);
+  border: 1px solid var(--fcl-line);
+  border-radius: 3px;
+  background: var(--fcl-panel-bg);
+  font-family: var(--fcl-font-mono);
+  font-size: clamp(12px, 2.6vw, 13px);
+  line-height: 1.5;
 }
 
+/* ---- Responsive ---- */
 @media (max-width: 640px) {
   .fcl-setting-row,
-  .fcl-field,
   .fcl-form {
     grid-template-columns: 1fr;
   }
 
   .fcl-list-row {
     grid-template-columns: 1fr;
-    padding: 0.65rem 0;
+    padding: 11px 4px;
   }
 
   .fcl-list-row .menu_button {
@@ -221,6 +510,10 @@
   .fcl-toolbar {
     align-items: flex-start;
     flex-direction: column;
-    gap: 0.35rem;
+    gap: 6px;
+  }
+
+  .fcl-status {
+    text-align: left;
   }
 }

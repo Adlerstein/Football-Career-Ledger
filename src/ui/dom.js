@@ -87,6 +87,23 @@ export function renderRecordForm(title, fields, submitLabel, onSubmit) {
   return h('section', { class: 'fcl-editor' }, [h('h3', { text: title }), form]);
 }
 
+// Pick the panel skin variant from the host SillyTavern theme. We sample the
+// theme's body text colour: light text means a dark theme, so the panel should
+// use its dark "parchment" palette. Falls back to 'light' if anything is off.
+export function detectThemeMode() {
+  try {
+    const styles = getComputedStyle(document.body);
+    const probe = (styles.getPropertyValue('--SmartThemeBodyColor') || styles.color || '').trim();
+    const channels = probe.match(/[\d.]+/g);
+    if (!channels || channels.length < 3) return 'light';
+    const [r, g, b] = channels.map(Number);
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    return luminance > 0.5 ? 'dark' : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
 export function setStatus(root, message, kind = 'info') {
   const status = root.querySelector('[data-fcl-status]');
   if (!status) return;

@@ -1,7 +1,7 @@
 import { createExampleState, exportStateJson } from './import-export.js';
 import { undoLastOperation } from './ledger-actions.js';
 import { clearLedgerState, readLedgerState, replaceLedgerState, writeLedgerState } from './storage.js';
-import { h, submitWithStatus } from './ui/dom.js';
+import { h, submitWithStatus, detectThemeMode } from './ui/dom.js';
 import { renderAbilities } from './ui/tabs/abilities.js';
 import { renderContracts } from './ui/tabs/contracts.js';
 import { renderData } from './ui/tabs/data.js';
@@ -60,8 +60,12 @@ export class LedgerUi {
     if (!this.root) return;
     this.root.textContent = '';
     const container = h('div', { class: 'fcl-panel' });
+    container.dataset.fclTheme = detectThemeMode();
     container.append(h('div', { class: 'fcl-toolbar' }, [
-      h('strong', { text: '足球生涯账本' }),
+      h('div', { class: 'fcl-headline' }, [
+        h('span', { class: 'fcl-kicker', text: 'Career Ledger · 球员档案' }),
+        h('strong', { class: 'fcl-title', text: '足球生涯账本' }),
+      ]),
       h('span', { 'data-fcl-status': '', class: 'fcl-status', text: '' }),
     ]));
     container.append(h('div', { class: 'fcl-tabs' }, tabDefs.map(([id, label]) => h('button', {
