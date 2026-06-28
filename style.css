@@ -541,3 +541,9 @@
   position: relative;
   cursor: pointer;
 }
+
+.fcl-date-row {
+  display: grid;
+  grid-template-columns: 1.1fr 0.95fr 0.95fr;
+  gap: 0.4rem;
+}

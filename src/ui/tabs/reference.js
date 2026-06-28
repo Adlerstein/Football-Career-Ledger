@@ -5,6 +5,7 @@
 // the chat-scoped ledger state.
 
 import { actionbar, card, field, h } from '../dom.js';
+import { getSeasonTemplateRows } from '../../season-utils.js';
 
 async function safe(fn, fallback) {
   try {
@@ -28,6 +29,29 @@ function downloadJson(context, value, filename) {
   URL.revokeObjectURL(link.href);
 }
 
+// --- date helpers: year/month/day selects compose to YYYY-MM-DD ---
+function pad2(value) {
+  return String(value).padStart(2, '0');
+}
+function isLeapYear(year) {
+  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
+}
+function daysInMonth(year, month) {
+  if (month === 2) return isLeapYear(year) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+function range(start, end) {
+  const out = [];
+  for (let value = start; value <= end; value += 1) out.push(value);
+  return out;
+}
+function parseDateParts(value) {
+  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match
+    ? { y: String(Number(match[1])), mo: String(Number(match[2])), d: String(Number(match[3])) }
+    : { y: '', mo: '', d: '' };
+}
+
 export async function renderReference(state, actions) {
   const ref = actions.reference;
   if (!ref?.api) {
@@ -36,6 +60,7 @@ export async function renderReference(state, actions) {
   const { api, injection, settings, view, context } = ref;
   const refresh = () => ref.refresh();
   const setStatus = (message) => { view.statusText = message; };
+  if (!view.dateParts) view.dateParts = parseDateParts(settings.currentDate);
 
   const [datasets, status] = await Promise.all([
     safe(() => api.listDatasets(), []),
@@ -132,16 +157,63 @@ export async function renderReference(state, actions) {
     } }),
   ]);
 
-  // --- lookup profile ---
-  const profileField = (label, key, attrs) => field(label, h('input', {
-    ...attrs,
-    value: settings[key] || '',
-    onchange: (event) => { api.updateActiveProfile({ [attrs['data-profile']]: event.target.value }); refresh(); },
-  }));
-  const profileCard = card('查询档案', h('div', { class: 'fcl-form fcl-compact-form' }, [
-    profileField('赛季 ID', 'currentSeasonId', { type: 'text', placeholder: '2024-25', 'data-profile': 'seasonId' }),
-    profileField('球队', 'currentTeam', { type: 'text', placeholder: 'Arsenal', 'data-profile': 'team' }),
-    profileField('当前日期', 'currentDate', { type: 'date', 'data-profile': 'currentDate' }),
+  // --- lookup profile: team text, season select, year/month/day date pickers ---
+  const seasonSelect = h('select', {
+    onchange: (event) => { api.updateActiveProfile({ seasonId: event.target.value }); refresh(); },
+  }, [
+    (() => { const option = h('option', { value: '', text: '未选择' }); option.selected = !settings.currentSeasonId; return option; })(),
+    ...getSeasonTemplateRows(1998, 2024).map((row) => {
+      const option = h('option', { value: row.value, text: row.label });
+      option.selected = String(row.value) === String(settings.currentSeasonId || '');
+      return option;
+    }),
+  ]);
+
+  const dateOption = (value, label, current) => {
+    const option = h('option', { value, text: label });
+    option.selected = String(value) === String(current ?? '');
+    return option;
+  };
+  const parts = view.dateParts;
+  const yNum = Number(parts.y);
+  const moNum = Number(parts.mo);
+  const maxDay = (Number.isInteger(yNum) && Number.isInteger(moNum)) ? daysInMonth(yNum, moNum) : 31;
+  const composeDate = () => {
+    const y = Number(view.dateParts.y);
+    const mo = Number(view.dateParts.mo);
+    let d = Number(view.dateParts.d);
+    if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d)) return '';
+    const max = daysInMonth(y, mo);
+    if (d > max) { d = max; view.dateParts.d = String(d); }
+    return `${y}-${pad2(mo)}-${pad2(d)}`;
+  };
+  const onDatePart = (key, value) => {
+    view.dateParts[key] = value;
+    const y = Number(view.dateParts.y);
+    const mo = Number(view.dateParts.mo);
+    if (Number.isInteger(y) && Number.isInteger(mo) && Number(view.dateParts.d) > daysInMonth(y, mo)) {
+      view.dateParts.d = String(daysInMonth(y, mo));
+    }
+    api.updateActiveProfile({ currentDate: composeDate() });
+    refresh();
+  };
+  const dateRow = h('div', { class: 'fcl-date-row' }, [
+    h('select', { onchange: (event) => onDatePart('y', event.target.value) },
+      [dateOption('', '年', parts.y), ...range(1998, 2025).map((value) => dateOption(String(value), `${value}`, parts.y))]),
+    h('select', { onchange: (event) => onDatePart('mo', event.target.value) },
+      [dateOption('', '月', parts.mo), ...range(1, 12).map((value) => dateOption(String(value), `${value}月`, parts.mo))]),
+    h('select', { onchange: (event) => onDatePart('d', event.target.value) },
+      [dateOption('', '日', parts.d), ...range(1, maxDay).map((value) => dateOption(String(value), `${value}日`, parts.d))]),
+  ]);
+  const profileCard = card('查询档案', h('div', {}, [
+    field('球队', h('input', {
+      type: 'text',
+      placeholder: 'Arsenal',
+      value: settings.currentTeam || '',
+      onchange: (event) => { api.updateActiveProfile({ team: event.target.value }); refresh(); },
+    })),
+    field('赛季', seasonSelect),
+    field('当前日期', dateRow),
   ]));
 
   // --- turn reference / injection ---
@@ -170,6 +242,12 @@ export async function renderReference(state, actions) {
           refresh();
         },
       }),
+      h('button', { type: 'button', class: 'menu_button fcl-small', text: '清空当前注入', onclick: () => {
+        injection.clearIfInjected();
+        view.preview = null;
+        setStatus('已清空当前注入。');
+        refresh();
+      } }),
       h('span', { class: `fcl-ref-pill${armed ? ' fcl-ref-pill-live' : ''}`, text: armed ? '下一次生成会注入' : '待命' }),
     ]),
     h('pre', { class: 'fcl-pre', text: previewText }),
