@@ -8,6 +8,7 @@
 
 import { extractIsoDate } from './date-utils.js';
 import { seasonIdFromStartYear } from '../season-utils.js';
+import { logger } from '../logger.js';
 
 const MIN_YEAR = 1990;
 const MAX_YEAR = 2040;
@@ -110,6 +111,7 @@ export function createMvuTimeSync({ context, getSettings, applyProfile, onChange
     if (!info.ok) return false;
     if (info.iso === settings.currentDate && info.seasonId === settings.currentSeasonId) return false;
     applyProfile({ currentDate: info.iso, seasonId: info.seasonId });
+    logger.info('MVU 时间已同步', { date: info.iso, season: info.seasonId, auto: !force });
     onChange();
     return true;
   }

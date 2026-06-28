@@ -1,4 +1,5 @@
 import { addSuggestionDrafts } from './suggestions.js';
+import { logger } from './logger.js';
 
 export function getMessageText(message) {
   return message?.mes || message?.message || message?.text || message?.content || '';
@@ -63,7 +64,7 @@ export function createMessageIngestor(deps = {}) {
     if (processedMessageKeys.has(key)) return 0;
     processedMessageKeys.add(key);
 
-    console.info('[football-career-ledger] suggestion blocks detected', {
+    logger.info('检测到建议块', {
       eventType,
       messageId: String(messageId),
       isUser: Boolean(message.is_user),
@@ -81,7 +82,7 @@ export function createMessageIngestor(deps = {}) {
         return result.state;
       });
       if (added > 0) {
-        console.info('[football-career-ledger] suggestion drafts added', {
+        logger.info('已加入草稿', {
           eventType,
           messageId: String(messageId),
           added,
@@ -90,7 +91,7 @@ export function createMessageIngestor(deps = {}) {
       }
       return added;
     } catch (error) {
-      console.warn('[football-career-ledger] suggestion parsing failed', error);
+      logger.warn('建议解析失败', error);
       return 0;
     }
   }

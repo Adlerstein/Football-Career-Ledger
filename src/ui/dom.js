@@ -1,5 +1,6 @@
-// Dependency-free DOM primitives and form helpers — the tiny rendering toolkit
-// the tab renderers build on. Nothing here knows about ledger constants or state.
+// DOM primitives and form helpers — the tiny rendering toolkit the tab renderers
+// build on. Knows nothing about ledger constants or state; only the logger util.
+import { logger } from '../logger.js';
 
 export function h(tag, attrs = {}, children = []) {
   const el = document.createElement(tag);
@@ -116,7 +117,7 @@ export async function submitWithStatus(root, message, action) {
     await action();
     setStatus(root, message, 'success');
   } catch (error) {
-    console.error('[football-career-ledger]', error);
+    logger.error('面板操作失败', error);
     setStatus(root, error.message || String(error), 'error');
   }
 }

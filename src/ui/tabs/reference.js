@@ -6,6 +6,7 @@
 
 import { actionbar, card, field, h } from '../dom.js';
 import { getSeasonTemplateRows, parseSeasonInput } from '../../season-utils.js';
+import { clampIso, daysInMonth, parseDateParts, partsToIso, range } from '../date-parts.js';
 
 async function safe(fn, fallback) {
   try {
@@ -30,28 +31,6 @@ function downloadJson(context, value, filename) {
 }
 
 // --- date helpers: year/month/day selects compose to YYYY-MM-DD ---
-function pad2(value) {
-  return String(value).padStart(2, '0');
-}
-function isLeapYear(year) {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-}
-function daysInMonth(year, month) {
-  if (month === 2) return isLeapYear(year) ? 29 : 28;
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-}
-function range(start, end) {
-  const out = [];
-  for (let value = start; value <= end; value += 1) out.push(value);
-  return out;
-}
-function parseDateParts(value) {
-  const match = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  return match
-    ? { y: String(Number(match[1])), mo: String(Number(match[2])), d: String(Number(match[3])) }
-    : { y: '', mo: '', d: '' };
-}
-
 // Selecting a season constrains the date pickers to that season's window
 // (e.g. 1998-99 -> 1998-07-01 .. 1999-06-30). With no season, a wide range is
 // allowed. Derived from season-utils so custom season ranges work too.
@@ -63,21 +42,6 @@ function seasonBoundFor(seasonId) {
     if (season.startedAt && season.endedAt) return { min: season.startedAt, max: season.endedAt };
   }
   return WIDE_BOUND;
-}
-
-function partsToIso(parts) {
-  const y = Number(parts.y);
-  const mo = Number(parts.mo);
-  const d = Number(parts.d);
-  if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d)) return '';
-  return `${y}-${pad2(mo)}-${pad2(Math.min(d, daysInMonth(y, mo)))}`;
-}
-
-function clampIso(date, min, max) {
-  if (!date) return date;
-  if (min && date < min) return min;
-  if (max && date > max) return max;
-  return date;
 }
 
 function composeBoundedDate(parts, bound) {

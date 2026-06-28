@@ -8,7 +8,8 @@ import {
 } from '../../ledger-actions.js';
 import { getFinanceSummary, queryTransactions } from '../../selectors.js';
 import { card, field, h, input, numberValue, renderRecordForm, select, textarea } from '../dom.js';
-import { currencyRows, currentLedgerDate, dateInput } from '../fields.js';
+import { currencyRows, mvuOrLedgerDate } from '../fields.js';
+import { dateSelect } from '../date-parts.js';
 
 export function renderFinance(state, actions) {
   const balances = getFinanceSummary(state).balances;
@@ -21,7 +22,7 @@ export function renderFinance(state, actions) {
     ? state.finance.transactions.find((transaction) => transaction.id === actions.editing.id)
     : null;
   const transactionFields = (row = {}) => [
-    field('日期', dateInput('date', row.date || currentLedgerDate(state))),
+    field('日期', dateSelect('date', row.date || mvuOrLedgerDate(state, actions))),
     field('类型', select('type', row.type || 'income', TRANSACTION_TYPES)),
     field('类别', select('category', row.category || 'salary', FINANCE_CATEGORIES)),
     field('金额', input('amountMinor', row.amountMinor ?? 1, { type: 'number', min: '1' })),

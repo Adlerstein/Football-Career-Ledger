@@ -52,6 +52,14 @@ export function currentLedgerDate(state) {
   return getCurrentSeason(state)?.startedAt || state.seasons[0]?.startedAt || LEDGER_START_DATE;
 }
 
+// Default date for a new event record: prefer the MVU story time (世界.当前时间)
+// when the reference subsystem resolved a usable one, else the ledger's current
+// season start. Keeps the value pre-filled while still letting the user pick.
+export function mvuOrLedgerDate(state, actions) {
+  const info = actions?.reference?.mvuTime?.resolve?.();
+  return info && info.ok && info.iso ? info.iso : currentLedgerDate(state);
+}
+
 export function dateInput(name, value = LEDGER_START_DATE, attrs = {}) {
   const resolved = value === undefined || value === null ? LEDGER_START_DATE : value;
   return input(name, resolved, { type: 'date', min: LEDGER_START_DATE, ...attrs });

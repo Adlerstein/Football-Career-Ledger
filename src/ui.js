@@ -5,6 +5,7 @@ import { h, submitWithStatus, detectThemeMode } from './ui/dom.js';
 import { renderAbilities } from './ui/tabs/abilities.js';
 import { renderContracts } from './ui/tabs/contracts.js';
 import { renderData } from './ui/tabs/data.js';
+import { renderLogs } from './ui/tabs/logs.js';
 import { renderDrafts } from './ui/tabs/drafts.js';
 import { renderFinance } from './ui/tabs/finance.js';
 import { renderMatches } from './ui/tabs/matches.js';
@@ -24,6 +25,7 @@ const tabDefs = [
   ['misc', '杂项'],
   ['reference', '球探资料'],
   ['data', '数据管理'],
+  ['logs', '日志'],
 ];
 
 // Nearest scrollable ancestor, so a re-render can preserve the scroll position
@@ -152,6 +154,7 @@ export class LedgerUi {
         });
       },
       selfCheck: this.actions.selfCheck,
+      refresh: () => this.render(),
       reference: this.reference ? {
         ...this.reference,
         view: this.referenceView,
@@ -171,6 +174,7 @@ export class LedgerUi {
       misc: () => renderMisc(state, sharedActions),
       reference: () => renderReference(state, sharedActions),
       data: () => renderData(state, sharedActions),
+      logs: () => renderLogs(state, sharedActions),
     };
     body.append(await renderers[this.activeTab]());
     this.root.replaceChildren(container);

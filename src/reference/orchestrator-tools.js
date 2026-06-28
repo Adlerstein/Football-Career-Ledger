@@ -1,5 +1,6 @@
 import { ORCHESTRATOR_TOOL_NAME } from './constants.js';
 import { getLastUserMessage, readMvuWorldTime } from './mvu-time.js';
+import { logger } from '../logger.js';
 
 let registered = false;
 let retryInstalled = false;
@@ -71,7 +72,7 @@ async function readLedgerSnapshot(ctx) {
     if (typeof ledger.getSnapshot === 'function') return await ledger.getSnapshot();
     if (typeof ledger.getCareerStatus === 'function') return { player: await ledger.getCareerStatus() };
   } catch (error) {
-    console.warn('[football-reference-scout] failed to read Football-Career-Ledger API', error);
+    logger.warn('读取 Football-Career-Ledger API 失败', error);
   }
   return null;
 }

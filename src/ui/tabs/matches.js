@@ -2,13 +2,14 @@ import { HOME_AWAY_VALUES } from '../../constants.js';
 import { addMatch, deleteMatch, updateMatch } from '../../ledger-actions.js';
 import { getCurrentSeason, queryMatches } from '../../selectors.js';
 import { boolValue, field, h, input, numberValue, renderRecordForm, select, textarea } from '../dom.js';
-import { currentLedgerDate, currentTeamName, dateInput, seasonRows, teamSelect } from '../fields.js';
+import { currentTeamName, mvuOrLedgerDate, seasonRows, teamSelect } from '../fields.js';
+import { dateSelect } from '../date-parts.js';
 
-function matchFields(state, match = {}) {
+function matchFields(state, match = {}, defaultDate = '') {
   const currentSeason = getCurrentSeason(state);
   return [
     field('赛季', select('seasonId', match.seasonId || currentSeason?.id || '', seasonRows(state, '请先创建赛季'))),
-    field('日期', dateInput('date', match.date || currentLedgerDate(state))),
+    field('日期', dateSelect('date', match.date || defaultDate)),
     field('赛事', input('competition', match.competition || '')),
     field('球队', teamSelect('club', state, match.club || currentTeamName(state) || currentSeason?.club || '')),
     field('对手', input('opponent', match.opponent || '')),
@@ -54,6 +55,7 @@ export function renderMatches(state, actions) {
   const editor = actions.editing?.type === 'match'
     ? state.matches.find((match) => match.id === actions.editing.id)
     : null;
+  const eventDate = mvuOrLedgerDate(state, actions);
   const rows = list.map((match) => h('li', { class: 'fcl-list-row' }, [
     h('span', { text: `${match.date} ${match.competition || ''} ${match.opponent} ${match.goalsFor}-${match.goalsAgainst}，${match.minutes}分钟 ${match.goals}球${match.assists}助` }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('match', match.id) }),
@@ -61,10 +63,10 @@ export function renderMatches(state, actions) {
   ]));
   return h('div', {}, [
     state.seasons.length ? null : h('p', { class: 'fcl-muted', text: '还没有赛季，先去“基础资料”或“赛季”页建一个。比如选 1998/99，赛季ID 会存成 1998-99。' }),
-    editor ? renderRecordForm('编辑比赛', matchFields(state, editor), '保存比赛', async (data) => {
+    editor ? renderRecordForm('编辑比赛', matchFields(state, editor, eventDate), '保存比赛', async (data) => {
       await actions.save((draft) => updateMatch(draft, editor.id, matchPayload(data)));
       actions.clearEditing();
-    }) : renderRecordForm('新增比赛', matchFields(state), '新增比赛', async (data, form) => {
+    }) : renderRecordForm('新增比赛', matchFields(state, {}, eventDate), '新增比赛', async (data, form) => {
       await actions.save((draft) => addMatch(draft, matchPayload(data)));
       form.reset();
     }),

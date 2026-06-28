@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS, EXTENSION_ID, PROMPT_KEY } from './src/constants.js';
+import { logger } from './src/logger.js';
 import { buildPromptSummary } from './src/prompt.js';
 import { createPublicApi, runApiSelfCheck } from './src/public-api.js';
 import { resolveHostContext } from './src/host-context.js';
@@ -54,7 +55,7 @@ async function updatePromptInjection() {
     const summary = buildPromptSummary(state, settings);
     context.setExtensionPrompt(PROMPT_KEY, summary, promptTypes.IN_CHAT, PROMPT_IN_CHAT_DEPTH, false, promptRoles.SYSTEM);
   } catch (error) {
-    console.error('[football-career-ledger] failed to update prompt summary', error);
+    logger.error('更新提示词摘要失败', error);
     context.setExtensionPrompt(PROMPT_KEY, '', promptTypes.NONE, 0, false, promptRoles.SYSTEM);
   }
 }
@@ -166,7 +167,7 @@ async function mountSettings() {
 function mountPanel() {
   const host = document.querySelector('#fcl_manager_panel');
   if (!host) {
-    console.error('[football-career-ledger] panel host was not found');
+    logger.error('未找到面板挂载点 #fcl_manager_panel');
     return;
   }
   host.hidden = !settings.panelOpen;
@@ -226,7 +227,7 @@ function registerEvents() {
     try {
       await copyBranchState(context, payload);
     } catch (error) {
-      console.warn('[football-career-ledger] branch state copy failed', error);
+      logger.warn('分支状态复制失败', error);
     }
   });
 }
@@ -279,7 +280,7 @@ function setupReference() {
 async function init() {
   context = resolveHostContext(globalThis);
   if (!context) {
-    console.error('[football-career-ledger] SillyTavern/Luker getContext() is unavailable');
+    logger.error('SillyTavern/Luker getContext() 不可用');
     return;
   }
 
@@ -291,7 +292,7 @@ async function init() {
   mountPanel();
   registerEvents();
   await updatePromptInjection();
-  console.info('[football-career-ledger] loaded');
+  logger.info('插件已加载');
 }
 
 if (globalThis.jQuery) {

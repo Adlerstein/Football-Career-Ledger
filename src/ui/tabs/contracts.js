@@ -1,14 +1,15 @@
 import { CONTRACT_TYPES, WAGE_PERIODS } from '../../constants.js';
 import { addContract, deleteContract, setActiveContract, updateContract } from '../../ledger-actions.js';
 import { boolValue, field, h, input, numberValue, renderRecordForm, select, textarea } from '../dom.js';
-import { currencyRows, currentLedgerDate, dateInput } from '../fields.js';
+import { currencyRows, mvuOrLedgerDate } from '../fields.js';
+import { dateSelect } from '../date-parts.js';
 
-function contractFields(state, contract = {}) {
+function contractFields(state, contract = {}, defaultDate = '') {
   return [
     field('俱乐部', input('club', contract.club || state.player.currentClub)),
     field('类型', select('contractType', contract.contractType || 'youth', CONTRACT_TYPES)),
-    field('开始日期', dateInput('startDate', contract.startDate || currentLedgerDate(state))),
-    field('结束日期', dateInput('endDate', contract.endDate || '', { value: contract.endDate || '' })),
+    field('开始日期', dateSelect('startDate', contract.startDate || defaultDate)),
+    field('结束日期', dateSelect('endDate', contract.endDate || '')),
     field('薪资金额', input('wageAmountMinor', contract.wageAmountMinor ?? 1, { type: 'number', min: '1' })),
     field('币种', select('wageCurrency', contract.wageCurrency || state.player.defaultCurrency || 'DEM', currencyRows(state))),
     field('周期', select('wagePeriod', contract.wagePeriod || 'weekly', WAGE_PERIODS)),
@@ -45,11 +46,12 @@ export function renderContracts(state, actions) {
     h('button', { type: 'button', class: 'menu_button fcl-small', text: contract.active ? '停用' : '设为当前', onclick: () => actions.save((draft) => contract.active ? updateContract(draft, contract.id, { active: false }) : setActiveContract(draft, contract.id)) }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm(contract.active ? '这是当前生效的合同，确定删除？' : '确认删除这份合同？') && actions.save((draft) => deleteContract(draft, contract.id)) }),
   ]));
+  const eventDate = mvuOrLedgerDate(state, actions);
   return h('div', {}, [
-    editor ? renderRecordForm('编辑合同', contractFields(state, editor), '保存合同', async (data) => {
+    editor ? renderRecordForm('编辑合同', contractFields(state, editor, eventDate), '保存合同', async (data) => {
       await actions.save((draft) => updateContract(draft, editor.id, contractPayload(data)));
       actions.clearEditing();
-    }) : renderRecordForm('新增合同', contractFields(state), '新增合同', async (data, form) => {
+    }) : renderRecordForm('新增合同', contractFields(state, {}, eventDate), '新增合同', async (data, form) => {
       if (boolValue(data.active) && state.contracts.some((contract) => contract.active) && !confirm('已经有一份当前合同了，停掉旧的、换成这份？')) return;
       await actions.save((draft) => addContract(draft, contractPayload(data)));
       form.reset();

@@ -1,4 +1,5 @@
 import { PROMPT_KEY } from './constants.js';
+import { logger } from '../logger.js';
 
 export function createInjectionController({
   context,
@@ -25,6 +26,7 @@ export function createInjectionController({
   async function armNextInjection() {
     settings.nextInjectionArmed = true;
     saveSettings();
+    logger.info('已武装下一次注入参考');
     onStateChange();
     return previewNextCapsule();
   }
@@ -44,6 +46,7 @@ export function createInjectionController({
     injected = true;
     settings.nextInjectionArmed = false;
     saveSettings();
+    logger.info('已注入本轮参考', { chars: text.length });
     onStateChange();
     return true;
   }

@@ -1,4 +1,5 @@
 import { API_VERSION } from './constants.js';
+import { logger } from './logger.js';
 import { cloneJson } from './schema.js';
 import { buildMemoryProjection, buildPromptSummary } from './prompt.js';
 import { getSuggestionSchema } from './suggestions.js';
@@ -79,6 +80,6 @@ export async function runApiSelfCheck(context, api, getState) {
     { name: '读取建议格式', ok: Boolean(await api.getSuggestionSchema('match')) },
     { name: '返回值隔离', ok: immutableReturn },
   ];
-  console.info('[football-career-ledger] api self check', results);
+  logger.info('API 自检', results);
   return results;
 }

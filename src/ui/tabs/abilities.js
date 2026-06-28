@@ -1,23 +1,30 @@
-import { ABILITY_KEYS, ABILITY_LABELS, LEDGER_START_DATE } from '../../constants.js';
+import { ABILITY_KEYS, ABILITY_LABELS } from '../../constants.js';
 import {
   applyAbilityChange,
   deleteAbilityHistory,
+  hasConfirmedCareerStart,
   setInitialAbilities,
   updateAbilityHistory,
 } from '../../ledger-actions.js';
 import { getAbilities } from '../../selectors.js';
 import { field, h, input, numberValue, renderRecordForm, select, textarea } from '../dom.js';
-import { currentLedgerDate, dateInput } from '../fields.js';
+import { mvuOrLedgerDate } from '../fields.js';
+import { dateSelect } from '../date-parts.js';
 
 export function renderAbilities(state, actions) {
   const abilities = getAbilities(state);
   const editor = actions.editing?.type === 'abilityHistory'
     ? state.abilities.history.find((item) => item.id === actions.editing.id)
     : null;
-  const canSetInitialAbilities = state.abilities.history.length === 0;
+  // Only offer the "set initial abilities" form on a truly fresh ledger: once a
+  // career has been built, abilities have been seeded, or any change exists, it
+  // is redundant (and setInitialAbilities would reject it anyway).
+  const canSetInitialAbilities = state.abilities.history.length === 0
+    && !hasConfirmedCareerStart(state)
+    && ABILITY_KEYS.every((key) => (state.abilities.current[key] ?? 0) === 0);
   const initialForm = renderRecordForm('设置初始能力', [
     ...ABILITY_KEYS.map((key) => field(ABILITY_LABELS[key], input(`initial_${key}`, abilities[key], { type: 'number', min: '0', max: '99' }))),
-    field('基准日期', dateInput('date', LEDGER_START_DATE)),
+    field('基准日期', dateSelect('date', mvuOrLedgerDate(state, actions))),
     field('来源说明', input('reason', '初始能力导入')),
   ], '保存初始能力', async (data) => {
     if (!canSetInitialAbilities) throw new Error('已经有能力历史了，不能直接覆盖初始值；先去编辑或删掉相关历史');
@@ -28,7 +35,7 @@ export function renderAbilities(state, actions) {
     }));
   });
   const form = renderRecordForm('修改能力', [
-    field('日期', dateInput('date', currentLedgerDate(state))),
+    field('日期', dateSelect('date', mvuOrLedgerDate(state, actions))),
     field('能力项', select('ability', 'passing', ABILITY_KEYS.map((key) => ({ value: key, label: ABILITY_LABELS[key] })))),
     field('变化量', input('delta', 1, { type: 'number', min: '-2', max: '2' })),
     field('原因', input('reason', '')),
@@ -43,7 +50,7 @@ export function renderAbilities(state, actions) {
     }));
   });
   const editForm = editor ? renderRecordForm('编辑能力历史', [
-    field('日期', dateInput('date', editor.date || currentLedgerDate(state))),
+    field('日期', dateSelect('date', editor.date || mvuOrLedgerDate(state, actions))),
     field('能力项', select('ability', editor.ability, ABILITY_KEYS.map((key) => ({ value: key, label: ABILITY_LABELS[key] })))),
     field('Before', input('before', editor.before, { type: 'number', min: '0', max: '99' })),
     field('After', input('after', editor.after, { type: 'number', min: '0', max: '99' })),
@@ -66,8 +73,7 @@ export function renderAbilities(state, actions) {
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除这条能力历史？') && actions.save((draft) => deleteAbilityHistory(draft, row.id)) }),
   ]));
   return h('div', {}, [
-    initialForm,
-    canSetInitialAbilities ? null : h('p', { class: 'fcl-muted', text: '已经有能力变动记录后，初始值就不能直接改了；想调整就用上面的“修改能力”，或编辑对应的历史记录。' }),
+    canSetInitialAbilities ? initialForm : null,
     form,
     editForm,
     h('h3', { text: '能力历史' }),

@@ -585,3 +585,53 @@
 .fcl-mvu-warn {
   color: var(--fcl-stamp);
 }
+
+/* ---- 日志 tab ---- */
+.fcl-log-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  max-height: 24rem;
+  overflow: auto;
+  border: 1px solid var(--fcl-line);
+  border-radius: 3px;
+  background: var(--fcl-panel-bg);
+  font-family: var(--fcl-font-mono);
+  font-size: clamp(11px, 2.4vw, 12.5px);
+}
+
+.fcl-log-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--fcl-line-soft);
+}
+
+.fcl-log-time {
+  color: var(--fcl-ink-soft);
+  white-space: nowrap;
+}
+
+.fcl-log-level {
+  font-weight: 700;
+}
+
+.fcl-log-msg {
+  color: var(--fcl-ink);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.fcl-log-info .fcl-log-level {
+  color: var(--fcl-accent);
+}
+
+.fcl-log-warn .fcl-log-level {
+  color: var(--fcl-warn);
+}
+
+.fcl-log-error .fcl-log-level {
+  color: var(--fcl-stamp);
+}
