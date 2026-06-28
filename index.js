@@ -10,6 +10,7 @@ import { createDatasetStore } from './src/reference/storage.js';
 import { createPublicApi as createReferenceApi } from './src/reference/public-api.js';
 import { createInjectionController as createReferenceInjection } from './src/reference/injection.js';
 import { registerOrchestratorTools as registerReferenceOrchestratorTools } from './src/reference/orchestrator-tools.js';
+import { createMvuTimeSync, getLastUserMessage } from './src/reference/mvu-time.js';
 import { EXTENSION_ID as REFERENCE_EXTENSION_ID } from './src/reference/constants.js';
 
 let context = null;
@@ -20,6 +21,7 @@ let ingestor = null;
 let referenceApi = null;
 let referenceSettings = null;
 let referenceInjection = null;
+let mvuTimeSync = null;
 const PROMPT_IN_CHAT_DEPTH = 1;
 const processedMessageKeys = new Set();
 
@@ -175,6 +177,7 @@ function mountPanel() {
   }, referenceApi ? {
     api: referenceApi,
     injection: referenceInjection,
+    mvuTime: mvuTimeSync,
     settings: referenceSettings,
     saveSettings: () => persistReferenceSettings(context, referenceSettings),
   } : null);
@@ -235,18 +238,6 @@ async function loadReferenceDataset() {
   return response.json();
 }
 
-function getLastUserMessage() {
-  const chat = context?.chat || globalThis.chat;
-  if (!Array.isArray(chat)) return '';
-  for (let index = chat.length - 1; index >= 0; index -= 1) {
-    const message = chat[index];
-    if (message?.is_user || message?.role === 'user') {
-      return String(message.mes || message.content || '');
-    }
-  }
-  return '';
-}
-
 // Football Reference Scout subsystem: read-only reference lookup + orchestrator
 // tool + one-shot prompt injection. Its settings (extensionSettings namespace)
 // and IndexedDB dataset store are independent of the chat-scoped ledger state;
@@ -271,11 +262,18 @@ function setupReference() {
     settings: referenceSettings,
     saveSettings: saveReference,
     buildCapsule: (args) => referenceApi.buildTurnCapsule(args),
-    getUserMessage: () => getLastUserMessage(),
+    getUserMessage: () => getLastUserMessage(context),
     onStateChange: () => ui?.render(),
   });
   registerReferenceOrchestratorTools(context, referenceApi);
   referenceInjection.registerEvents();
+  mvuTimeSync = createMvuTimeSync({
+    context,
+    getSettings: () => referenceSettings,
+    applyProfile: (profile) => referenceApi.updateActiveProfile(profile),
+    onChange: () => ui?.render(),
+  });
+  mvuTimeSync.registerEvents();
 }
 
 async function init() {

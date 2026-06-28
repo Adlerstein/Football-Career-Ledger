@@ -14,6 +14,8 @@ export function ensureSettings(context) {
   settings.nearbyDays = clampInteger(settings.nearbyDays, 0, 14, DEFAULT_SETTINGS.nearbyDays);
   settings.promptMaxChars = clampInteger(settings.promptMaxChars, 500, 10000, DEFAULT_SETTINGS.promptMaxChars);
   settings.nextInjectionArmed = Boolean(settings.nextInjectionArmed);
+  settings.autoSyncMvuTime = Boolean(settings.autoSyncMvuTime);
+  settings.mvuTimeOverride = Boolean(settings.mvuTimeOverride);
   settings.enabled = Boolean(settings.enabled);
   return settings;
 }

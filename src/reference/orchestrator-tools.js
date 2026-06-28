@@ -1,4 +1,5 @@
 import { ORCHESTRATOR_TOOL_NAME } from './constants.js';
+import { getLastUserMessage, readMvuWorldTime } from './mvu-time.js';
 
 let registered = false;
 let retryInstalled = false;
@@ -54,7 +55,7 @@ function registerOrchestratorToolsNow(context, api) {
     exec: async (args = {}, toolCtx = {}) => {
       const userMessage = args.userMessage || getLastUserMessage(toolCtx);
       const ledgerSnapshot = args.ledgerSnapshot || await readLedgerSnapshot(toolCtx);
-      const stateTime = args.stateTime || readStateTimeFromContext(toolCtx);
+      const stateTime = args.stateTime || readMvuWorldTime(toolCtx);
       return api.buildTurnCapsule({ userMessage, stateTime, ledgerSnapshot });
     },
   });
@@ -73,29 +74,4 @@ async function readLedgerSnapshot(ctx) {
     console.warn('[football-reference-scout] failed to read Football-Career-Ledger API', error);
   }
   return null;
-}
-
-function getLastUserMessage(ctx) {
-  const chat = Array.isArray(ctx?.chat) ? ctx.chat : [];
-  for (let index = chat.length - 1; index >= 0; index -= 1) {
-    const message = chat[index];
-    if (message?.is_user || message?.role === 'user') {
-      return String(message.mes || message.content || '');
-    }
-  }
-  return '';
-}
-
-function readStateTimeFromContext(ctx) {
-  const candidates = [
-    ctx?.variables?.global?.世界?.当前时间,
-    ctx?.variables?.local?.世界?.当前时间,
-    ctx?.chatMetadata?.variables?.世界?.当前时间,
-    globalThis?.chat_metadata?.variables?.世界?.当前时间,
-    globalThis?.stat_data?.世界?.当前时间,
-  ];
-  for (const value of candidates) {
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return '';
 }

@@ -87,7 +87,6 @@ export async function clearLedgerState(context) {
   } else if (!overwritten && canUseChatMetadata(context)) {
     context.chatMetadata[EXTENSION_ID] = fresh;
     await context.saveMetadata();
-    overwritten = true;
   } else if (!overwritten) {
     throw new Error('SillyTavern/Luker 聊天状态删除 API 不可用');
   }

@@ -93,7 +93,13 @@ export async function renderReference(state, actions) {
   const { api, injection, settings, view, context } = ref;
   const refresh = () => ref.refresh();
   const setStatus = (message) => { view.statusText = message; };
-  if (!view.dateParts) view.dateParts = parseDateParts(settings.currentDate);
+  // Sync the date pickers from settings.currentDate when it changed externally
+  // (MVU adopt / auto-sync); keep an in-progress partial selection otherwise.
+  if (!view.dateParts) {
+    view.dateParts = parseDateParts(settings.currentDate);
+  } else if (settings.currentDate && settings.currentDate !== partsToIso(view.dateParts)) {
+    view.dateParts = parseDateParts(settings.currentDate);
+  }
 
   const [datasets, status] = await Promise.all([
     safe(() => api.listDatasets(), []),
@@ -194,6 +200,7 @@ export async function renderReference(state, actions) {
   const seasonSelect = h('select', {
     onchange: (event) => {
       const nextId = event.target.value;
+      if (settings.autoSyncMvuTime) settings.mvuTimeOverride = true;
       api.updateActiveProfile({ seasonId: nextId });
       // Keep any already-picked date inside the newly selected season window.
       const iso = partsToIso(view.dateParts);
@@ -239,6 +246,7 @@ export async function renderReference(state, actions) {
     return option;
   };
   const onDatePart = (key, value) => {
+    if (settings.autoSyncMvuTime) settings.mvuTimeOverride = true;
     view.dateParts[key] = value;
     const iso = composeBoundedDate(view.dateParts, bound);
     if (iso) view.dateParts = parseDateParts(iso);
@@ -253,7 +261,71 @@ export async function renderReference(state, actions) {
     h('select', { onchange: (event) => onDatePart('d', event.target.value) },
       [dateOption('', '日', parts.d), ...range(dayLower, dayUpper).map((value) => dateOption(String(value), `${value}日`, parts.d))]),
   ]);
+  // MVU world-time: detect 世界.当前时间, let the user adopt it once or auto-follow.
+  const mvu = ref.mvuTime ? ref.mvuTime.resolve() : null;
+  const mvuStatusText = (() => {
+    if (!mvu || mvu.reason === 'none') return '剧情时间(MVU)：未检测到（AI 尚未写入 世界.当前时间）';
+    if (mvu.reason === 'unparsed') return `剧情时间(MVU)：${mvu.raw}（无法解析为具体日期，请手动设置）`;
+    if (mvu.reason === 'out-of-range') return `剧情时间(MVU)：${mvu.raw}（超出合理范围，疑似幻觉，已忽略）`;
+    return `剧情时间(MVU)：${mvu.raw} → ${mvu.iso}${mvu.seasonId ? ` · 赛季 ${mvu.seasonId}` : ''}`;
+  })();
+  const autoOn = Boolean(settings.autoSyncMvuTime);
+  const overridden = autoOn && Boolean(settings.mvuTimeOverride);
+  const mvuActions = [
+    h('button', {
+      type: 'button',
+      class: 'menu_button fcl-small',
+      disabled: !(mvu && mvu.ok),
+      text: '采用 MVU 时间',
+      onclick: () => {
+        if (!(mvu && mvu.ok)) return;
+        settings.mvuTimeOverride = false;
+        ref.mvuTime.apply({ force: true });
+        setStatus(`已采用剧情时间 ${mvu.iso}`);
+        refresh();
+      },
+    }),
+  ];
+  if (overridden) {
+    mvuActions.push(h('button', {
+      type: 'button',
+      class: 'menu_button fcl-small',
+      text: '恢复自动跟随',
+      onclick: () => {
+        settings.mvuTimeOverride = false;
+        ref.saveSettings();
+        ref.mvuTime.apply({ force: false });
+        setStatus('已恢复自动跟随剧情时间');
+        refresh();
+      },
+    }));
+  }
+  const mvuBlock = h('div', { class: 'fcl-mvu' }, [
+    h('p', { class: mvu && mvu.reason === 'out-of-range' ? 'fcl-muted fcl-mvu-warn' : 'fcl-muted', text: mvuStatusText }),
+    h('label', { class: 'checkbox_label' }, [
+      h('input', {
+        type: 'checkbox',
+        checked: autoOn,
+        onchange: (event) => {
+          settings.autoSyncMvuTime = event.target.checked;
+          if (settings.autoSyncMvuTime) {
+            settings.mvuTimeOverride = false;
+            ref.saveSettings();
+            ref.mvuTime.apply({ force: false });
+          } else {
+            ref.saveSettings();
+          }
+          refresh();
+        },
+      }),
+      '自动跟随剧情时间(MVU)',
+    ]),
+    overridden ? h('p', { class: 'fcl-muted', text: '已手动覆盖，自动跟随暂停中。' }) : null,
+    actionbar(mvuActions),
+  ]);
+
   const profileCard = card('查询档案', h('div', {}, [
+    mvuBlock,
     field('球队', h('input', {
       type: 'text',
       placeholder: 'Arsenal',

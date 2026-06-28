@@ -13,7 +13,7 @@ export function parseImportJson(text) {
   try {
     parsed = JSON.parse(text);
   } catch (error) {
-    throw new Error(`JSON 解析失败: ${error.message}`);
+    throw new Error(`JSON 解析失败: ${error.message}`, { cause: error });
   }
   const state = migrateState(parsed);
   validateState(state);

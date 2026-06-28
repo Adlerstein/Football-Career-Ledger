@@ -18,7 +18,7 @@ function draftSummary(draft) {
 }
 
 export function renderDrafts(state, actions) {
-  const drafts = getDrafts(state, { limit: 100 });
+  const drafts = getDrafts(state, { limit: 100, clone: false });
   const editor = actions.editing?.type === 'draft'
     ? state.drafts.find((draft) => draft.id === actions.editing.id)
     : null;

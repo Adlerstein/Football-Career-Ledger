@@ -28,7 +28,6 @@ export function createInitialAbilities() {
 export function createSource(type = 'manual', overrides = {}) {
   const safeType = SOURCE_TYPES.includes(type) ? type : 'manual';
   return {
-    type: safeType,
     messageId: null,
     swipeId: null,
     draftId: null,

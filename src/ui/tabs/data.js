@@ -1,5 +1,5 @@
 import { PROMPT_PRESETS } from '../../constants.js';
-import { buildImportSummary, createExampleState, exportStateJson, parseImportJson } from '../../import-export.js';
+import { buildImportSummary, exportStateJson, parseImportJson } from '../../import-export.js';
 import { buildPromptSummary } from '../../prompt.js';
 import { buildModelSuggestionInstructions } from '../../suggestions.js';
 import { actionbar, card, h, textarea } from '../dom.js';

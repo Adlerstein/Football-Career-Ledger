@@ -1,5 +1,4 @@
 export const EXTENSION_ID = 'football-career-ledger';
-export const DISPLAY_NAME = '足球生涯账本';
 export const SCHEMA_VERSION = 2;
 export const API_VERSION = 2;
 export const QUERY_LIMIT_MAX = 100;

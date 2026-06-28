@@ -26,6 +26,20 @@ const tabDefs = [
   ['data', '数据管理'],
 ];
 
+// Nearest scrollable ancestor, so a re-render can preserve the scroll position
+// instead of letting the panel jump to the top.
+function getScrollParent(node) {
+  let el = node?.parentElement;
+  while (el) {
+    const overflowY = getComputedStyle(el).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') && el.scrollHeight > el.clientHeight) {
+      return el;
+    }
+    el = el.parentElement;
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
 export class LedgerUi {
   constructor(context, api, settings, actions, reference = null) {
     this.context = context;
@@ -62,14 +76,19 @@ export class LedgerUi {
 
   async render() {
     if (!this.root) return;
-    this.root.textContent = '';
+    // Skip rebuilding the panel while it is collapsed/hidden: generation, MVU
+    // sync and chat-change events all call render(), and doing the full DOM +
+    // selector work for an invisible panel is wasted battery on mobile. The
+    // open handler re-renders once the panel is shown.
+    if (this.root.hidden) return;
+    // Build the new panel off-DOM and swap it in atomically at the end. The panel
+    // never collapses to empty mid-render, so the scroll position is preserved.
+    const scroller = getScrollParent(this.root);
+    const prevScrollTop = scroller ? scroller.scrollTop : 0;
     const container = h('div', { class: 'fcl-panel' });
     container.dataset.fclTheme = detectThemeMode();
     container.append(h('div', { class: 'fcl-toolbar' }, [
-      h('div', { class: 'fcl-headline' }, [
-        h('span', { class: 'fcl-kicker', text: 'Career Ledger · 球员档案' }),
-        h('strong', { class: 'fcl-title', text: '足球生涯账本' }),
-      ]),
+      h('strong', { class: 'fcl-title', text: '绿茵生涯账册' }),
       h('span', { 'data-fcl-status': '', class: 'fcl-status', text: '' }),
     ]));
     container.append(h('div', { class: 'fcl-tabs' }, tabDefs.map(([id, label]) => h('button', {
@@ -84,13 +103,13 @@ export class LedgerUi {
     }))));
     const body = h('div', { class: 'fcl-body' });
     container.append(body);
-    this.root.append(container);
 
     let state;
     try {
       state = await readLedgerState(this.context);
     } catch (error) {
       body.append(h('p', { class: 'fcl-error', text: `读不到当前聊天的数据：${error.message}` }));
+      this.root.replaceChildren(container);
       return;
     }
 
@@ -154,5 +173,7 @@ export class LedgerUi {
       data: () => renderData(state, sharedActions),
     };
     body.append(await renderers[this.activeTab]());
+    this.root.replaceChildren(container);
+    if (scroller) scroller.scrollTop = prevScrollTop;
   }
 }

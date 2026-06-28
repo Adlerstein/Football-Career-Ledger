@@ -9,6 +9,7 @@ import { createPublicApi } from '../src/reference/public-api.js';
 import { resolveTurnContext } from '../src/reference/turn-context.js';
 import { createDatasetStore } from '../src/reference/storage.js';
 import { createInjectionController } from '../src/reference/injection.js';
+import { deriveSeasonIdFromIso, resolveMvuTime } from '../src/reference/mvu-time.js';
 
 const sampleDataset = {
   schemaVersion: 1,
@@ -368,4 +369,24 @@ test('one-shot injection arms, injects once, and clears prompt on generation lif
 
   events.get('ended')();
   assert.equal(prompts.at(-1).value, '');
+});
+
+test('derives the football season from an ISO date (Jul–Jun split)', () => {
+  assert.equal(deriveSeasonIdFromIso('2005-02-17'), '2004-05');
+  assert.equal(deriveSeasonIdFromIso('2005-08-10'), '2005-06');
+  assert.equal(deriveSeasonIdFromIso('not-a-date'), '');
+});
+
+test('resolves MVU world time, rejecting vague or out-of-range hallucinations', () => {
+  const ctx = (value) => ({ chatMetadata: { variables: { 世界: { 当前时间: value } } } });
+
+  const ok = resolveMvuTime(ctx('2005-02-17 早晨'));
+  assert.equal(ok.ok, true);
+  assert.equal(ok.iso, '2005-02-17');
+  assert.equal(ok.seasonId, '2004-05');
+
+  assert.equal(resolveMvuTime(ctx('赛季中期')).reason, 'unparsed');
+  assert.equal(resolveMvuTime(ctx('1850-01-01')).reason, 'out-of-range');
+  assert.equal(resolveMvuTime(ctx('')).reason, 'none');
+  assert.equal(resolveMvuTime({}).reason, 'none');
 });

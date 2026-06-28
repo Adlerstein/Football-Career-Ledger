@@ -36,14 +36,6 @@ export function dateRangeAround(isoDate, days = 0) {
   return [addDays(isoDate, -offset), addDays(isoDate, offset)];
 }
 
-export function normalizeDateRange(range) {
-  if (!Array.isArray(range) || range.length < 2) return null;
-  const start = extractIsoDate(range[0]);
-  const end = extractIsoDate(range[1]);
-  if (!start || !end) return null;
-  return start <= end ? [start, end] : [end, start];
-}
-
 export function resolveRelativeDate(userMessage, baseDate) {
   const text = String(userMessage || '');
   if (!baseDate) return null;

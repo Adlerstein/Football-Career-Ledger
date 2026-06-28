@@ -50,7 +50,7 @@ function matchPayload(data) {
 }
 
 export function renderMatches(state, actions) {
-  const list = queryMatches(state, { limit: actions.matchLimit || 50 });
+  const list = queryMatches(state, { limit: actions.matchLimit || 50, clone: false });
   const editor = actions.editing?.type === 'match'
     ? state.matches.find((match) => match.id === actions.editing.id)
     : null;

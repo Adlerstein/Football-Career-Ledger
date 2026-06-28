@@ -26,8 +26,8 @@ function renderSummaryCards(state, actions) {
   const contract = getActiveContract(state);
   const finance = getFinanceSummary(state);
   const abilities = getAbilities(state);
-  const recent = queryMatches(state, { seasonId: season?.id, limit: 3 });
-  const operations = getOperationHistory(state, { limit: 3 });
+  const recent = queryMatches(state, { seasonId: season?.id, limit: 3, clone: false });
+  const operations = getOperationHistory(state, { limit: 3, clone: false });
   const pendingDrafts = getPendingDraftCount(state);
   const grid = h('div', { class: 'fcl-summary-grid' });
 

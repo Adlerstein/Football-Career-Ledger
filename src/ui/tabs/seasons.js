@@ -6,9 +6,9 @@ import {
   SQUAD_ROLE_VALUES,
 } from '../../constants.js';
 import { formatSeasonTotals } from '../../formatters.js';
-import { addSeason, closeSeason, createNextSeason, deleteSeason, updateSeason } from '../../ledger-actions.js';
+import { addSeason, closeSeason, createNextSeason, deleteSeason, recalculateSeasonClosure, updateSeason } from '../../ledger-actions.js';
 import { getNextSeasonTemplate, getSeasonTemplateRows, parseSeasonInput } from '../../season-utils.js';
-import { getCurrentSeason, summarizeSeason } from '../../selectors.js';
+import { summarizeSeason } from '../../selectors.js';
 import { card, field, h, input, renderRecordForm, select, staticValue, textarea } from '../dom.js';
 import {
   currentLedgerDate,
@@ -94,7 +94,6 @@ function readManualTotals(data) {
 }
 
 export function renderSeasons(state, actions) {
-  const currentSeason = getCurrentSeason(state);
   const activeSeason = state.seasons.find((season) => season.status === 'active') || null;
   const latestSeason = state.seasons.slice().sort((a, b) => String(b.startedAt || '').localeCompare(String(a.startedAt || '')))[0] || null;
   const nextTemplate = getNextSeasonTemplate(latestSeason);
@@ -107,6 +106,7 @@ export function renderSeasons(state, actions) {
       h('span', { text: `${season.label || season.id} ${season.status} ${summary?.appearances ?? 0}场 ${summary?.goals ?? 0}球 ${summary?.assists ?? 0}助${summary?.hasManualTotals ? ' ·手动' : ''}` }),
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('season', season.id) }),
       season.status === 'active' ? h('button', { type: 'button', class: 'menu_button fcl-small', text: '结束', onclick: () => actions.setEditing('closeSeason', season.id) }) : null,
+      season.closedSummary ? h('button', { type: 'button', class: 'menu_button fcl-small', text: '重算', title: '按当前比赛重新计算本赛季的自动统计，保留手填荣誉/小结', onclick: () => actions.save((draft) => recalculateSeasonClosure(draft, season.id)) }) : null,
       h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除这个赛季？还挂着比赛记录的赛季删不了。') && actions.save((draft) => deleteSeason(draft, season.id)) }),
     ]);
   });

@@ -61,8 +61,7 @@ function latestClosedSeason(state) {
   return state.seasons
     .filter((season) => season.status === 'completed' && season.closedSummary)
     .slice()
-    .sort((a, b) => String(b.endedAt || b.startedAt || '').localeCompare(String(a.endedAt || a.startedAt || '')))
-    [0] || null;
+    .sort((a, b) => String(b.endedAt || b.startedAt || '').localeCompare(String(a.endedAt || a.startedAt || '')))[0] || null;
 }
 
 function pushSection(lines, title, rows) {

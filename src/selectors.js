@@ -5,6 +5,13 @@ function byDateDesc(a, b) {
   return String(b.date || '').localeCompare(String(a.date || '')) || String(b.id || '').localeCompare(String(a.id || ''));
 }
 
+// Skip the defensive deep-clone when the caller (the read-only UI) passes
+// clone:false. The public API omits the flag, so external callers keep getting
+// independent copies they cannot use to mutate internal state.
+function maybeClone(value, options) {
+  return options && options.clone === false ? value : cloneJson(value);
+}
+
 export function clampLimit(value, fallback = QUERY_LIMIT_MAX) {
   const limit = Number(value ?? fallback);
   if (!Number.isFinite(limit)) return fallback;
@@ -108,7 +115,7 @@ export function queryMatches(state, options = {}) {
     rows = rows.filter((match) => match.notable);
   }
   rows.sort(byDateDesc);
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getActiveContract(state) {
@@ -123,7 +130,7 @@ export function getContracts(state, options = {}) {
     rows = rows.filter((contract) => contract.active === options.active);
   }
   rows.sort((a, b) => String(b.startDate || '').localeCompare(String(a.startDate || '')));
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getFinanceSummary(state) {
@@ -160,7 +167,7 @@ export function queryTransactions(state, options = {}) {
   if (options.type) rows = rows.filter((row) => row.type === options.type);
   if (options.category) rows = rows.filter((row) => row.category === options.category);
   rows.sort(byDateDesc);
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getAbilities(state) {
@@ -172,7 +179,7 @@ export function getAbilityHistory(state, options = {}) {
   let rows = state.abilities.history.slice();
   if (options.ability) rows = rows.filter((row) => row.ability === options.ability);
   rows.sort(byDateDesc);
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getMiscellaneous(state, options = {}) {
@@ -181,7 +188,7 @@ export function getMiscellaneous(state, options = {}) {
   if (options.key) rows = rows.filter((row) => row.key === options.key);
   if (options.tag) rows = rows.filter((row) => Array.isArray(row.tags) && row.tags.includes(options.tag));
   rows.sort(byDateDesc);
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getDrafts(state, options = {}) {
@@ -190,7 +197,7 @@ export function getDrafts(state, options = {}) {
   if (options.status) rows = rows.filter((draft) => draft.status === options.status);
   if (options.type) rows = rows.filter((draft) => draft.type === options.type);
   rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getDraft(state, id) {
@@ -213,7 +220,7 @@ export function getOperationHistory(state, options = {}) {
   if (options.entityType) rows = rows.filter((operation) => operation.entityType === options.entityType);
   if (options.includeUndone === false) rows = rows.filter((operation) => !operation.undoneAt);
   rows.sort((a, b) => String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
-  return cloneJson(rows.slice(0, limit));
+  return maybeClone(rows.slice(0, limit), options);
 }
 
 export function getSnapshot(state) {

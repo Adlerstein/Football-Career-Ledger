@@ -1,73 +1,83 @@
-/* Football Career Ledger — "scouting report" skin.
+/* Football Career Ledger — "ledger book" skin (绿茵生涯账册).
  *
- * The manager panel (.fcl-panel) is themed as a vintage archive sheet, echoing
- * Luker's football "建档/球探报告" UI: paper texture, ruled lines, serif type,
- * dotted-underline section headers and an accent-green / stamp-red palette.
+ * The manager panel (.fcl-panel) is themed as a bound ledger book: a coloured
+ * cover band for the header, a spine accent down the left edge, manila ruled
+ * pages, file-divider tabs and zebra-striped account rows with tabular numerals.
+ * Deliberately distinct from the card's in-world surfaces (the parchment
+ * scouting-report 建档页 and the dark "pitch" status panel) so the tool reads as
+ * the app, not the story.
  *
- * It is a hybrid skin: a light "paper" palette by default and a dark "parchment
- * at night" variant. ui.js samples the host SillyTavern theme and stamps
- * data-fcl-theme="light|dark" on the panel; the @media block below is a no-JS
- * fallback. The settings drawer (.fcl-settings) deliberately stays ST-native so
- * it blends into the extensions panel — only the manager panel gets the skin.
+ * Hybrid light/dark: a light manila palette by default and a dark "night ledger"
+ * variant. ui.js stamps data-fcl-theme="light|dark"; the @media block is a no-JS
+ * fallback. The settings drawer (.fcl-settings) stays ST-native.
  */
 
-/* ---- Design tokens: light / paper (default) ---- */
+/* ---- Design tokens: light / manila ledger (default) ---- */
 .fcl-panel {
-  --fcl-paper: #f4ecd8;
-  --fcl-paper-2: #e7d9b8;
-  --fcl-panel-bg: rgba(255, 252, 242, 0.5);
-  --fcl-ink: #1f3329;
-  --fcl-ink-soft: #52614f;
-  --fcl-line: #c7b78e;
-  --fcl-line-soft: rgba(120, 95, 45, 0.3);
-  --fcl-accent: #1f5d3f;
-  --fcl-accent-dark: #143f2a;
-  --fcl-accent-tint: rgba(31, 93, 63, 0.08);
+  --fcl-paper: #ece2cb;
+  --fcl-paper-2: #ddd0b0;
+  --fcl-panel-bg: rgba(255, 252, 244, 0.42);
+  --fcl-ink: #2b2920;
+  --fcl-ink-soft: #6b6450;
+  --fcl-line: #c4b489;
+  --fcl-line-soft: rgba(90, 72, 35, 0.28);
+  --fcl-accent: #235c3e;
+  --fcl-accent-dark: #163c28;
+  --fcl-accent-tint: rgba(35, 92, 62, 0.09);
+  --fcl-cover: #235c3e;
+  --fcl-cover-ink: #f2ead2;
   --fcl-stamp: #a8362a;
   --fcl-warn: #8a5a12;
-  --fcl-ruled: rgba(60, 90, 70, 0.045);
-  --fcl-shadow: rgba(120, 95, 45, 0.1);
+  --fcl-ruled: rgba(70, 90, 60, 0.05);
+  --fcl-zebra: rgba(110, 90, 45, 0.05);
+  --fcl-shadow: rgba(90, 70, 35, 0.1);
   --fcl-radius: 4px;
   --fcl-font-serif: "Times New Roman", "Times", "FangSong", "STFangsong", "仿宋", "FangSong_GB2312", serif;
   --fcl-font-mono: "Courier New", monospace;
   color-scheme: light;
 }
 
-/* ---- Design tokens: dark / parchment at night ---- */
+/* ---- Design tokens: dark / night ledger ---- */
 .fcl-panel[data-fcl-theme="dark"] {
-  --fcl-paper: #1b211c;
-  --fcl-paper-2: #141915;
-  --fcl-panel-bg: rgba(70, 84, 70, 0.16);
+  --fcl-paper: #1a1f1a;
+  --fcl-paper-2: #131711;
+  --fcl-panel-bg: rgba(70, 84, 70, 0.15);
   --fcl-ink: #e7e0c6;
-  --fcl-ink-soft: #aab09a;
-  --fcl-line: #54624e;
-  --fcl-line-soft: rgba(180, 200, 170, 0.16);
+  --fcl-ink-soft: #a9af99;
+  --fcl-line: #515e4a;
+  --fcl-line-soft: rgba(180, 200, 170, 0.15);
   --fcl-accent: #6cba8c;
   --fcl-accent-dark: #2f6a49;
   --fcl-accent-tint: rgba(108, 186, 140, 0.12);
+  --fcl-cover: #14301e;
+  --fcl-cover-ink: #e9e1c9;
   --fcl-stamp: #e0695a;
   --fcl-warn: #d9b066;
   --fcl-ruled: rgba(180, 200, 170, 0.035);
-  --fcl-shadow: rgba(0, 0, 0, 0.35);
+  --fcl-zebra: rgba(180, 200, 170, 0.04);
+  --fcl-shadow: rgba(0, 0, 0, 0.3);
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: dark) {
   .fcl-panel:not([data-fcl-theme="light"]) {
-    --fcl-paper: #1b211c;
-    --fcl-paper-2: #141915;
-    --fcl-panel-bg: rgba(70, 84, 70, 0.16);
+    --fcl-paper: #1a1f1a;
+    --fcl-paper-2: #131711;
+    --fcl-panel-bg: rgba(70, 84, 70, 0.15);
     --fcl-ink: #e7e0c6;
-    --fcl-ink-soft: #aab09a;
-    --fcl-line: #54624e;
-    --fcl-line-soft: rgba(180, 200, 170, 0.16);
+    --fcl-ink-soft: #a9af99;
+    --fcl-line: #515e4a;
+    --fcl-line-soft: rgba(180, 200, 170, 0.15);
     --fcl-accent: #6cba8c;
     --fcl-accent-dark: #2f6a49;
     --fcl-accent-tint: rgba(108, 186, 140, 0.12);
+    --fcl-cover: #14301e;
+    --fcl-cover-ink: #e9e1c9;
     --fcl-stamp: #e0695a;
     --fcl-warn: #d9b066;
     --fcl-ruled: rgba(180, 200, 170, 0.035);
-    --fcl-shadow: rgba(0, 0, 0, 0.35);
+    --fcl-zebra: rgba(180, 200, 170, 0.04);
+    --fcl-shadow: rgba(0, 0, 0, 0.3);
     color-scheme: dark;
   }
 }
@@ -85,7 +95,7 @@
   margin: 0.45rem 0;
 }
 
-/* ---- The sheet ---- */
+/* ---- The book ---- */
 .fcl-panel {
   position: relative;
   overflow: hidden;
@@ -93,13 +103,14 @@
   padding: clamp(14px, 3vw, 22px);
   color: var(--fcl-ink);
   font-family: var(--fcl-font-serif);
-  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
   border: 1px solid var(--fcl-line);
-  border-radius: 6px;
+  border-left: 3px solid var(--fcl-accent);
+  border-radius: 5px;
   background:
-    repeating-linear-gradient(0deg, transparent, transparent 31px, var(--fcl-ruled) 31px, var(--fcl-ruled) 32px),
-    linear-gradient(160deg, var(--fcl-paper), var(--fcl-paper-2));
-  box-shadow: inset 0 0 60px var(--fcl-shadow);
+    repeating-linear-gradient(0deg, transparent, transparent 27px, var(--fcl-ruled) 27px, var(--fcl-ruled) 28px),
+    linear-gradient(170deg, var(--fcl-paper), var(--fcl-paper-2));
 }
 
 .fcl-panel::before {
@@ -115,36 +126,24 @@
   position: relative;
 }
 
-/* ---- Report header ---- */
+/* ---- Cover-band header ---- */
 .fcl-toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 14px;
-  border-bottom: 2px solid var(--fcl-ink);
-  padding-bottom: 10px;
-  margin-bottom: 14px;
-}
-
-.fcl-headline {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.fcl-kicker {
-  font-size: clamp(10px, 2.2vw, 12px);
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
-  font-weight: 700;
-  color: var(--fcl-accent);
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 9px 13px;
+  background: var(--fcl-cover);
+  border-radius: 4px;
+  box-shadow: 0 1px 0 var(--fcl-accent-dark);
 }
 
 .fcl-title {
-  font-size: clamp(18px, 4.5vw, 26px);
+  font-size: clamp(16px, 4vw, 22px);
   font-weight: 700;
-  letter-spacing: 0.04em;
-  color: var(--fcl-ink);
+  letter-spacing: 0.1em;
+  color: var(--fcl-cover-ink);
 }
 
 .fcl-status {
@@ -153,33 +152,37 @@
   font-size: clamp(11px, 2.4vw, 13px);
   font-style: italic;
   text-align: right;
-  color: var(--fcl-ink-soft);
+  color: var(--fcl-cover-ink);
+  opacity: 0.82;
 }
 
 .fcl-status[data-kind="success"] {
-  color: var(--fcl-accent);
+  color: #bfe8cd;
+  opacity: 1;
   font-style: normal;
   font-weight: 700;
 }
 
-.fcl-status[data-kind="error"],
-.fcl-error {
-  color: var(--fcl-stamp);
+.fcl-status[data-kind="error"] {
+  color: #f3b3a6;
+  opacity: 1;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .fcl-error {
+  color: var(--fcl-stamp);
   font-weight: 600;
 }
 
-/* ---- Tabs ---- */
+/* ---- File-divider tabs ---- */
 .fcl-tabs {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
   overflow-x: auto;
-  padding-bottom: 10px;
-  margin-bottom: 4px;
-  border-bottom: 1px solid var(--fcl-line-soft);
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--fcl-accent);
 }
 
 /* ---- Buttons: primary (solid) by default ---- */
@@ -207,13 +210,16 @@
   box-shadow: 0 1px 0 var(--fcl-accent-dark);
 }
 
-/* Tab buttons: ghost, with the active one promoted to solid. */
+/* Tab buttons: file-divider tabs sitting on the accent baseline. */
 .fcl-tabs .menu_button {
-  background: transparent;
+  background: var(--fcl-panel-bg);
   color: var(--fcl-ink-soft);
   border: 1px solid var(--fcl-line);
+  border-bottom: none;
+  border-radius: 6px 6px 0 0;
   box-shadow: none;
   font-weight: 600;
+  margin-bottom: -1px;
 }
 
 .fcl-tabs .menu_button:hover {
@@ -228,7 +234,7 @@
   color: var(--fcl-paper);
   border-color: var(--fcl-accent);
   outline: none;
-  box-shadow: 0 2px 0 var(--fcl-accent-dark);
+  box-shadow: none;
 }
 
 /* Secondary buttons (row edit/delete, inline small actions): ghost. */
@@ -390,14 +396,29 @@
   background: var(--fcl-panel-bg);
 }
 
-/* Checkboxes must not stretch like text fields. */
-.fcl-field input[type="checkbox"] {
+/* Checkbox fields: lay the box and its label out as one centered row, instead
+   of a tiny box stranded under a stacked label in a tall grid cell. */
+.fcl-field > input[type="checkbox"] {
+  order: 1;
   width: 18px;
   height: 18px;
   min-height: 0;
-  align-self: flex-start;
+  margin: 0;
   border-bottom: 0;
   accent-color: var(--fcl-accent);
+}
+
+.fcl-field:has(> input[type="checkbox"]) {
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-height: 2.4rem;
+}
+
+.fcl-field:has(> input[type="checkbox"]) > span {
+  order: 2;
+  font-style: normal;
 }
 
 /* ---- Lists ---- */
@@ -412,8 +433,13 @@
   grid-template-columns: minmax(0, 1fr) repeat(4, auto);
   gap: 8px;
   align-items: center;
-  padding: 9px 4px;
-  border-bottom: 1px dotted var(--fcl-line);
+  padding: 9px 6px;
+  border-bottom: 1px solid var(--fcl-line-soft);
+  font-variant-numeric: tabular-nums;
+}
+
+.fcl-list-row:nth-child(odd) {
+  background: var(--fcl-zebra);
 }
 
 .fcl-list-row:hover {
@@ -546,4 +572,16 @@
   display: grid;
   grid-template-columns: 1.1fr 0.95fr 0.95fr;
   gap: 0.4rem;
+}
+
+.fcl-mvu {
+  display: grid;
+  gap: 0.4rem;
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px dotted var(--fcl-line);
+}
+
+.fcl-mvu-warn {
+  color: var(--fcl-stamp);
 }

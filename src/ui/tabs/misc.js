@@ -27,7 +27,7 @@ export function renderMisc(state, actions) {
   const editor = actions.editing?.type === 'misc'
     ? state.miscellaneous.find((item) => item.id === actions.editing.id)
     : null;
-  const rows = getMiscellaneous(state, { limit: 50 }).map((row) => h('li', { class: 'fcl-list-row' }, [
+  const rows = getMiscellaneous(state, { limit: 50, clone: false }).map((row) => h('li', { class: 'fcl-list-row' }, [
     h('span', { text: `${row.date} ${row.key}=${row.value} ${row.tags.join(', ')}` }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('misc', row.id) }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除这条杂项？') && actions.save((draft) => deleteMiscellaneous(draft, row.id)) }),

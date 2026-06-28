@@ -12,7 +12,7 @@ import { currencyRows, currentLedgerDate, dateInput } from '../fields.js';
 
 export function renderFinance(state, actions) {
   const balances = getFinanceSummary(state).balances;
-  const rows = queryTransactions(state, { limit: 50 }).map((row) => h('li', { class: 'fcl-list-row' }, [
+  const rows = queryTransactions(state, { limit: 50, clone: false }).map((row) => h('li', { class: 'fcl-list-row' }, [
     h('span', { text: `${row.date} ${row.type} ${row.category} ${row.amountMinor} ${row.currency} ${row.description}` }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '编辑', onclick: () => actions.setEditing('transaction', row.id) }),
     h('button', { type: 'button', class: 'menu_button fcl-small', text: '删除', onclick: () => confirm('确认删除这条流水？') && actions.save((draft) => deleteTransaction(draft, row.id)) }),

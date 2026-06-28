@@ -1,7 +1,5 @@
 export const EXTENSION_ID = 'football-reference-scout';
-export const DISPLAY_NAME = 'Football Reference Scout';
 export const API_VERSION = 1;
-export const DATASET_SCHEMA_VERSION = 1;
 export const ORCHESTRATOR_TOOL_NAME = 'football_ref_build_turn_capsule';
 export const PROMPT_KEY = `${EXTENSION_ID}:turn-reference`;
 
@@ -23,5 +21,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   nearbyDays: DEFAULT_NEARBY_DAYS,
   promptMaxChars: DEFAULT_PROMPT_MAX_CHARS,
   nextInjectionArmed: false,
+  autoSyncMvuTime: false,
+  mvuTimeOverride: false,
   panelOpen: false,
 });

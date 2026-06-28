@@ -1,12 +1,12 @@
 {
-  "display_name": "足球生涯账本",
+  "display_name": "绿茵生涯账册",
   "loading_order": 120,
   "requires": [],
   "optional": ["orchestrator"],
   "js": "index.js",
   "css": "style.css",
   "author": "YP",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "homePage": "https://github.com/<your-github-user>/Football-Career-Ledger",
   "auto_update": true
 }
