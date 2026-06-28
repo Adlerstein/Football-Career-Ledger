@@ -12,16 +12,50 @@ import { seasonIdFromStartYear } from '../season-utils.js';
 const MIN_YEAR = 1990;
 const MAX_YEAR = 2040;
 
+function pickWorldTime(root) {
+  const value = root?.世界?.当前时间;
+  return typeof value === 'string' && value.trim() ? value.trim() : '';
+}
+
+// MVU persists its variable tree (stat_data) as a per-message, per-swipe value:
+// message.variables[swipe_id].stat_data.世界.当前时间. Collect the stat_data root
+// from the most recent messages that carry it.
+function collectMessageStatData(context) {
+  const chat = Array.isArray(context?.chat)
+    ? context.chat
+    : (Array.isArray(globalThis.chat) ? globalThis.chat : []);
+  const roots = [];
+  for (let index = chat.length - 1; index >= 0 && roots.length < 4; index -= 1) {
+    const message = chat[index];
+    const vars = message?.variables;
+    if (Array.isArray(vars)) {
+      const swipe = Number.isInteger(message.swipe_id) ? message.swipe_id : 0;
+      const entry = vars[swipe] ?? vars[vars.length - 1] ?? vars[0];
+      if (entry?.stat_data) roots.push(entry.stat_data);
+    } else if (vars?.stat_data) {
+      roots.push(vars.stat_data);
+    }
+  }
+  return roots;
+}
+
 export function readMvuWorldTime(context) {
-  const candidates = [
-    context?.variables?.global?.世界?.当前时间,
-    context?.variables?.local?.世界?.当前时间,
-    context?.chatMetadata?.variables?.世界?.当前时间,
-    globalThis?.chat_metadata?.variables?.世界?.当前时间,
-    globalThis?.stat_data?.世界?.当前时间,
+  const roots = [
+    // Authoritative: the latest message's persisted stat_data (MVU's real store).
+    ...collectMessageStatData(context),
+    // Fallbacks: chat/global stat_data roots some setups also expose.
+    context?.chatMetadata?.variables?.stat_data,
+    globalThis?.chat_metadata?.variables?.stat_data,
+    globalThis?.stat_data,
+    // Fallbacks for variable frameworks that expose 世界 directly.
+    context?.variables?.global,
+    context?.variables?.local,
+    context?.chatMetadata?.variables,
+    globalThis?.chat_metadata?.variables,
   ];
-  for (const value of candidates) {
-    if (typeof value === 'string' && value.trim()) return value.trim();
+  for (const root of roots) {
+    const time = pickWorldTime(root);
+    if (time) return time;
   }
   return '';
 }

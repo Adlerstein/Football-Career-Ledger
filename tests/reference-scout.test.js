@@ -390,3 +390,16 @@ test('resolves MVU world time, rejecting vague or out-of-range hallucinations', 
   assert.equal(resolveMvuTime(ctx('')).reason, 'none');
   assert.equal(resolveMvuTime({}).reason, 'none');
 });
+
+test('reads MVU world time from message-level swipe stat_data', () => {
+  const context = {
+    chat: [
+      { is_user: true, mes: '季前训练' },
+      { swipe_id: 0, variables: [{ stat_data: { 世界: { 当前时间: '2005-07-01 傍晚' } } }] },
+    ],
+  };
+  const info = resolveMvuTime(context);
+  assert.equal(info.ok, true);
+  assert.equal(info.iso, '2005-07-01');
+  assert.equal(info.seasonId, '2005-06');
+});

@@ -1,6 +1,6 @@
 {
   "name": "football-career-ledger",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "SillyTavern 足球生涯结构化账本前端扩展（含只读球探赛事资料子系统）",
   "type": "module",
   "private": false,
